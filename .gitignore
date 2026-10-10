@@ -1,0 +1,19 @@
+# dependencies
+node_modules/
+
+# secrets — NEVER commit
+.env
+app/.gw_token
+app/.gh_token
+app/.tg_token
+*.gw_token
+*.gh_token
+*.tg_token
+
+# runtime-generated live screenshots
+app/public/naver_shot.png
+
+# misc
+*.bak-*
+*.log
+/tmp/

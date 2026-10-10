@@ -1,0 +1,17 @@
+{
+  "name": "bac-demo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BaC multi-agent live demo for NVIDIA Spark (DGX Spark / GB10), driven by an OpenClaw gateway.",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node app/server.js",
+    "cdp": "bash scripts/ensure-cdp.sh"
+  },
+  "dependencies": {
+    "playwright-core": "1.60.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

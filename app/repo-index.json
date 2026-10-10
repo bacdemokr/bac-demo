@@ -1,0 +1,27 @@
+{
+  "repo": "bacdemokr/bac-demo",
+  "indexedAt": "2026-10-10",
+  "defaultBranch": "main",
+  "summary": "A Node.js HTTP server and Canvas multi-agent demo for NVIDIA Spark. Browser helpers use playwright-core. The server proxies local OpenClaw agents.",
+  "topLevel": [
+    "app",
+    "scripts",
+    "agent-workspaces",
+    "assets",
+    "package.json",
+    "README.md",
+    "INSTALL.md"
+  ],
+  "src": [
+    "app/server.js",
+    "app/public/game.js",
+    "scripts/"
+  ],
+  "language": "JavaScript / Node.js",
+  "demoStrategy": {
+    "targetDir": "demo-features/",
+    "branchConvention": "bacdemo/<slug>-YYYYMMDD-HHMM",
+    "prBase": "main",
+    "note": "Implement one small standalone JavaScript module under demo-features/. Avoid modifying the live demo server or UI."
+  }
+}

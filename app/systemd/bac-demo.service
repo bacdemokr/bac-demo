@@ -1,0 +1,16 @@
+[Unit]
+Description=BaC multi-agent demo
+After=openclaw-gateway.service bac-chromium.service
+Wants=bac-chromium.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/nvidia/bac-demo
+EnvironmentFile=/home/nvidia/bac-demo/.env
+Environment=PATH=/home/nvidia/.local/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin
+ExecStart=/home/nvidia/.local/bin/node app/server.js
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target
