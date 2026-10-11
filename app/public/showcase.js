@@ -53,6 +53,7 @@
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!document.querySelector('dialog[open]'))$('chat-close').click();});
   document.querySelectorAll('[data-mission]').forEach(b=>b.onclick=()=>{
     const mission=b.dataset.mission;
+    if(mission==='browser'||mission==='mail')demo().closeChat({restoreFocus:false});
     if(mission==='browser')openBrowser();
     if(mission==='team')demo().openAgent('multiagent');
     if(mission==='research')demo().openAgent('arxiv');
@@ -68,7 +69,7 @@
     tabs.forEach(b=>{const active=b.dataset.tab===tab;b.setAttribute('aria-selected',String(active));b.tabIndex=active?0:-1;$('panel-'+b.dataset.tab).hidden=!active;});
   }
   function openSettings(tab='telegram') { selectTab(tab);if(!$('settings-dialog').open)$('settings-dialog').showModal();refreshStatus(); }
-  $('settings-open').onclick=()=>openSettings();
+  $('settings-open').onclick=()=>{demo().closeChat({restoreFocus:false});openSettings();};
   document.querySelectorAll('[data-tab]').forEach((b,i)=>{
     b.onclick=()=>selectTab(b.dataset.tab);
     b.onkeydown=e=>{

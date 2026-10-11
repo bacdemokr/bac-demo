@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b1018">
   <title>Agentic AI Demo</title>
-  <link rel="stylesheet" href="showcase.css">
+  <link rel="stylesheet" href="showcase.css?v=docked">
 </head>
 <body>
 <div id="wrap">
@@ -24,7 +24,7 @@
   <nav id="agent-roster" aria-label="에이전트 선택"></nav>
   <footer class="activity-dock"><div class="activity-title"><span class="tiny-dot"></span><strong>실행 기록</strong></div><ol id="activity-list" aria-live="polite"></ol><button id="activity-clear" class="icon-button" aria-label="실행 기록 지우기">↺</button></footer>
   <div id="hint" class="sr-only">에이전트를 선택하세요</div>
-  <section id="chat" aria-label="에이전트 대화" aria-hidden="true">
+  <section id="chat" aria-label="에이전트 대화" aria-hidden="true" inert>
     <div id="chat-head"><div id="chat-dot"></div><div><div id="chat-name">Agent</div><div id="chat-role"></div></div><button id="chat-close" class="icon-button" aria-label="대화 닫기">×</button></div>
     <div id="agent-actions"></div>
     <div id="msgs" role="log" aria-live="polite"></div>
@@ -55,7 +55,7 @@
 <dialog id="inbox-dialog" class="dialog" aria-labelledby="inbox-title"><div class="dialog-head"><h2 id="inbox-title">받은편지함</h2><button class="icon-button" data-close="inbox-dialog" aria-label="받은편지함 닫기">×</button></div><div class="dialog-actions"><button id="inbox-refresh" class="quiet-button">새로고침 ↺</button><button id="mail-new" class="primary-button">메일 쓰기 ✉</button></div><p id="inbox-status" role="status"></p><div id="inbox-messages"></div></dialog>
 <dialog id="share-dialog" class="dialog" aria-labelledby="share-title"><div class="dialog-head"><h2 id="share-title">결과 공유</h2><button class="icon-button" data-close="share-dialog" aria-label="공유 창 닫기">×</button></div><form id="share-form"><label for="share-channel">보낼 곳</label><select id="share-channel"><option value="telegram">Telegram</option><option value="agentmail">이메일 · AgentMail</option></select><div id="share-email-fields" hidden><label for="share-to">받는 사람</label><input id="share-to" type="email" autocomplete="email" placeholder="you@example.com"><label for="share-subject">제목</label><input id="share-subject" value="Agentic AI Demo 결과" maxlength="200"></div><label for="share-text">보낼 내용</label><textarea id="share-text" rows="8" maxlength="20000" required></textarea><p id="share-destination" class="field-note"></p><p id="share-status" class="form-status" role="status"></p><div class="dialog-actions"><button class="primary-button" type="submit" id="share-send">보내기 ↗</button></div></form></dialog>
 <div id="toast" role="status" hidden></div>
-<script src="game.js"></script>
-<script src="showcase.js"></script>
+<script src="game.js?v=docked"></script>
+<script src="showcase.js?v=docked"></script>
 </body>
 </html>

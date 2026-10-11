@@ -12,8 +12,9 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--lime);outline-offse
 a{color:var(--mint);text-decoration:none}
 a:hover{text-decoration:underline}
 [hidden]{display:none!important}
-#wrap{position:relative;min-height:700px}
-#game{position:absolute;inset:0;width:100%;height:100%;display:block}
+#wrap{position:relative;min-height:700px;--chat-width:400px;--chat-space:calc(var(--chat-width) + 32px)}
+#game{position:absolute;inset:0;width:100%;height:100%;display:block;transition:width .4s var(--ease),height .4s var(--ease)}
+#wrap.chat-open #game{width:calc(100% - var(--chat-space))}
 #topbar{position:absolute;top:0;left:0;right:0;height:85px;display:flex;align-items:center;justify-content:space-between;padding:0 38px;border-bottom:1px solid #ffffff0c;background:#0b1018cc;z-index:5}
 .brand{display:flex;align-items:center;gap:11px;color:var(--ink);text-decoration:none!important}
 .brand strong{font-size:23px;font-weight:600;letter-spacing:-.6px}
@@ -34,15 +35,18 @@ a:hover{text-decoration:underline}
 .amber{color:#f4bf67;background:#6c4c2630}
 .violet{color:#b69cf3;background:#4b3d702f}
 .rose{color:#f09abb;background:#79455625}
-.stage-label{position:absolute;top:124px;left:370px;right:40px;display:flex;justify-content:flex-end;pointer-events:none}
+.stage-label{position:absolute;top:124px;left:370px;right:40px;display:flex;justify-content:flex-end;pointer-events:none;transition:right .4s var(--ease),left .4s var(--ease)}
 .stage-count{font:10px ui-monospace,monospace;letter-spacing:1px;color:#60796e;border:1px solid #2b3e36;border-radius:20px;padding:9px 12px}
-#agent-roster{position:absolute;bottom:125px;left:350px;right:35px;display:flex;justify-content:center;gap:5px}
+#agent-roster{position:absolute;bottom:125px;left:350px;right:35px;display:flex;justify-content:center;gap:5px;transition:right .4s var(--ease),left .4s var(--ease)}
+#wrap.chat-open .stage-label{right:calc(var(--chat-space) + 40px)}
+#wrap.chat-open #agent-roster{right:calc(var(--chat-space) + 35px);flex-wrap:wrap}
+#wrap.chat-open .activity-dock{right:calc(var(--chat-space) + 38px);gap:12px}
 .agent-button{border:1px solid #24382f;background:#0f1918bb;border-radius:9px;padding:10px 9px;text-align:left;display:flex;align-items:center;gap:7px;font-size:10px;transition:border-color .2s,background .2s;min-width:0}
 .agent-button i{height:6px;width:6px;border-radius:50%;background:var(--agent-color);box-shadow:0 0 7px var(--agent-color)}
 .agent-button small{display:block;font-size:8px;color:#6e877d;margin-top:4px}
 .agent-button.active{border-color:var(--agent-color);background:#1c3027}
 .agent-button:hover{border-color:#698d73}
-.activity-dock{position:absolute;left:38px;right:38px;bottom:24px;height:78px;display:flex;align-items:center;gap:20px;border-top:1px solid #2c3d32;background:#0b1018d9;padding:17px 0 0}
+.activity-dock{position:absolute;left:38px;right:38px;bottom:24px;height:78px;display:flex;align-items:center;gap:20px;border-top:1px solid #2c3d32;background:#0b1018d9;padding:17px 0 0;transition:right .4s var(--ease)}
 .activity-title{width:125px;flex-shrink:0;position:relative;padding-left:15px}
 .activity-title .tiny-dot{position:absolute;top:4px;left:0;background:var(--mint)}
 .activity-title strong{font-size:11px;font-weight:500}
@@ -52,9 +56,9 @@ a:hover{text-decoration:underline}
 #activity-list strong{font-size:9px;color:var(--mint);font-weight:500}
 #activity-list p{margin-top:7px;color:#a9bfb0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .activity-dock>.icon-button{align-self:center;color:#647e6e;border-color:#23392c}
-#chat{position:absolute;top:0;right:0;width:430px;height:100%;background:#101923f5;backdrop-filter:blur(24px);border-left:1px solid #35493c;z-index:10;box-shadow:-25px 0 80px #0007;display:flex;flex-direction:column;transform:translateX(105%);transition:transform .45s var(--ease);visibility:hidden}
-#chat.open{transform:translateX(0);visibility:visible}
-#chat-head{display:flex;align-items:center;gap:12px;padding:25px 21px;border-bottom:1px solid var(--border)}
+#chat{position:absolute;top:101px;right:16px;bottom:16px;width:var(--chat-width);background:#101923f5;backdrop-filter:blur(24px);border:1px solid #35493c;border-radius:16px;z-index:10;box-shadow:-8px 12px 40px #0004;display:flex;flex-direction:column;overflow:hidden;transform:translateX(calc(100% + 32px));opacity:0;transition:transform .4s var(--ease),opacity .25s,visibility 0s .4s;visibility:hidden}
+#chat.open{transform:translateX(0);opacity:1;visibility:visible;transition-delay:0s}
+#chat-head{display:flex;align-items:center;gap:12px;padding:20px;border-bottom:1px solid var(--border)}
 #chat-dot{height:35px;width:35px;border-radius:12px;box-shadow:0 0 20px #ffffff08,inset 0 1px 0 #ffffff30}
 #chat-name{font-size:18px;font-weight:600}
 #chat-role{font-size:10px;color:var(--muted);margin-top:5px}
@@ -62,7 +66,7 @@ a:hover{text-decoration:underline}
 #agent-actions{padding:12px 20px;display:flex;gap:8px;flex-wrap:wrap}
 #agent-actions:empty{padding:0}
 #agent-actions button{font-size:11px;padding:8px;border-radius:7px;border:1px solid #34473d;background:#152820;color:#abd6bc}
-#msgs{flex:1;overflow:auto;padding:18px 20px;display:flex;flex-direction:column;gap:12px;overscroll-behavior:contain}
+#msgs{flex:1;min-height:0;overflow:auto;padding:18px 20px;display:flex;flex-direction:column;gap:12px;overscroll-behavior:contain}
 .msg{max-width:95%;padding:13px 15px;border-radius:14px;font-size:13px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere;animation:rise-in .3s var(--ease)}
 .msg.bot{align-self:flex-start;background:#1b2932;border:1px solid #293d40;border-bottom-left-radius:3px}
 .msg.me{align-self:flex-end;background:#254431;border:1px solid #3e6245;border-bottom-right-radius:3px}
@@ -169,6 +173,24 @@ to{opacity:1;transform:translateY(0) scale(1)}
 .status-pill{font-size:9px}
 }
 
+@media(min-width:901px) and (max-width:1350px){#wrap.chat-open .missions{width:160px;left:25px}
+#wrap.chat-open .mission{padding:12px 9px;gap:8px}
+#wrap.chat-open .mission strong{font-size:11px}
+#wrap.chat-open .mission-icon{width:28px;height:28px;font-size:20px}
+#wrap.chat-open .stage-label{left:215px}
+#wrap.chat-open #agent-roster{left:200px}
+}
+
+@media(min-width:901px) and (max-width:1100px){#wrap{--chat-width:360px}
+#wrap.chat-open .missions{width:140px}
+#wrap.chat-open .mission{padding:11px 8px}
+#wrap.chat-open .mission-icon{width:24px;height:24px;font-size:18px}
+#wrap.chat-open .stage-label{left:190px}
+#wrap.chat-open #agent-roster{left:180px;right:calc(var(--chat-space) + 25px);flex-wrap:nowrap;justify-content:flex-start;overflow-x:auto;scrollbar-width:thin}
+#wrap.chat-open .agent-button{flex-shrink:0}
+#wrap.chat-open .activity-title{width:85px}
+}
+
 @media(max-width:900px){html{height:auto;overflow-y:auto}
 body{height:auto;overflow:visible}
 #wrap{height:1000px;min-height:1000px;overflow:visible}
@@ -185,7 +207,20 @@ body{height:auto;overflow:visible}
 .activity-dock{left:25px;right:25px;bottom:20px;gap:13px}
 .activity-title{width:85px}
 #activity-list li{min-width:150px}
-#chat{position:fixed;width:min(430px,100vw);height:100dvh}
+#wrap{--chat-height:min(50dvh,520px)}
+#chat{position:fixed;top:auto;right:0;bottom:0;width:100%;height:var(--chat-height);border-radius:18px 18px 0 0;transform:translateY(calc(100% + 16px));box-shadow:0 -8px 35px #0004}
+#chat.open{transform:translateY(0)}
+#chat-head{padding:13px 18px}
+#chat-dot{width:28px;height:28px;border-radius:9px}
+#chat-name{font-size:16px}
+#chat-role{font-size:9px}
+#agent-actions{padding:10px 18px}
+#wrap.chat-open{height:100dvh;min-height:0}
+#wrap.chat-open #game{width:100%;height:calc(100dvh - var(--chat-height))}
+#wrap.chat-open .missions,#wrap.chat-open .stage-label,#wrap.chat-open .activity-dock{display:none}
+#wrap.chat-open #agent-roster{top:87px;bottom:auto;left:16px;right:16px;justify-content:flex-start;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+#wrap.chat-open .agent-button{flex-shrink:0}
+#wrap.chat-open #agent-roster::-webkit-scrollbar{display:none}
 .browser-layout{grid-template-columns:1fr}
 .browser-trace{padding-top:0}
 #browser-steps{display:flex;gap:10px;margin-top:12px;overflow:auto}

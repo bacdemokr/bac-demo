@@ -1,6 +1,7 @@
 /* BaC Multi-Agent Demo - game engine */
 (() => {
   const canvas = document.getElementById("game");
+  const wrap = document.getElementById("wrap");
   const ctx = canvas.getContext("2d");
   let W = 0, H = 0, DPR = 1;
 
@@ -10,7 +11,6 @@
     canvas.width = W * DPR; canvas.height = H * DPR;
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   }
-  window.addEventListener("resize", resize);
   resize();
 
   // ---------- Agents ----------
@@ -28,16 +28,28 @@
 
   let motionPaused = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const emit = (type, detail) => window.dispatchEvent(new CustomEvent("bac:" + type, { detail }));
+  const mobileView = () => window.innerWidth <= 900;
+  const compactView = () => mobileView() && wrap.classList.contains("chat-open");
   function arena() {
-    const mobile = W <= 900;
-    const left = mobile ? 24 : (W >= 1500 ? 380 : 330);
-    const right = W - (mobile ? 24 : 40);
-    const top = mobile ? 365 : 210;
-    const bottom = H - (mobile ? 310 : 240);
-    return { x: (left + right) / 2, y: (top + bottom) / 2, rx: (right - left) * .34, ry: Math.max(95, (bottom - top) * .36), left, right, top, bottom };
+    const mobile = mobileView(), compact = compactView();
+    const docked = wrap.classList.contains("chat-open");
+    const preferredLeft = mobile ? 24 : docked && window.innerWidth <= 1100 ? 185 : docked && window.innerWidth <= 1350 ? 210 : window.innerWidth >= 1500 ? 380 : 330;
+    const right = Math.max(1, W - Math.min(mobile ? 24 : 40, W / 8));
+    const left = Math.min(preferredLeft, Math.max(0, right - 120));
+    const top = compact ? Math.min(155, H * .48) : mobile ? 365 : Math.min(210, H * .25);
+    const rosterTop = document.getElementById("agent-roster").offsetTop;
+    const bottom = compact ? H - 58 : mobile ? H - 310 : Math.min(H - 240, rosterTop > 0 ? rosterTop - 80 : H - 240);
+    const minRadius = compact ? 32 : docked ? Math.max(55, 150 - Math.max(0, right - left - 380) * .4) : 55;
+    return { x: (left + right) / 2, y: (top + bottom) / 2, rx: (right - left) * .34, ry: Math.max(minRadius, (bottom - top) * .36), left, right, top, bottom };
   }
   function home(i) {
-    const a = arena(), angle = (i / Math.max(AGENTS.length, 1)) * Math.PI * 2 - Math.PI / 2;
+    const a = arena();
+    if (compactView()) {
+      const firstRow = i < 4, count = firstRow ? Math.min(4, AGENTS.length) : AGENTS.length - 4;
+      const column = firstRow ? i : i - 4;
+      return { x: a.left + (a.right - a.left) * (column + .5) / count, y: firstRow ? Math.max(146, a.top) : Math.max(231, H - 64) };
+    }
+    const angle = (i / Math.max(AGENTS.length, 1)) * Math.PI * 2 - Math.PI / 2;
     return { x: a.x + Math.cos(angle) * a.rx, y: a.y + Math.sin(angle) * a.ry };
   }
   function buildChars() {
@@ -99,6 +111,9 @@
 
   // ---------- Draw a Claw mascot character (color-tinted) ----------
   function drawChar(c, t) {
+    const scale = compactView() ? .76 : 1;
+    ctx.save();
+    ctx.translate(c.x, c.y); ctx.scale(scale, scale); ctx.translate(-c.x, -c.y);
     const bob = Math.sin(t * 2 + c.bob) * (c.busy ? 4 : 2.5);
     const x = c.x, y = c.y + bob;
 
@@ -204,6 +219,7 @@
     } else {
       c.bubble = null;
     }
+    ctx.restore();
   }
 
   function drawBubble(c, text) {
@@ -341,10 +357,11 @@
   let activeChar = null;
 
   function hitTest(mx, my) {
+    const scale = compactView() ? .76 : 1;
     // topmost (largest y) first
     const sorted = [...chars].sort((a, b) => b.y - a.y);
     for (const c of sorted) {
-      if (Math.abs(mx - c.x) < 32 && my - c.y < 40 && my - c.y > -54) return c;
+      if (Math.abs(mx - c.x) < 32 * scale && my - c.y < 40 * scale && my - c.y > -54 * scale) return c;
     }
     return null;
   }
@@ -363,6 +380,7 @@
     // Ignore clicks on the bot that's already open (prevents wiping an
     // in-flight conversation / clearing the panel mid-request).
     if (c && c !== activeChar) openChat(c);
+    else if (!c) closeChat({ restoreFocus: false });
   });
 
   // ---------- Chat UI ----------
@@ -371,12 +389,16 @@
   const inputEl = document.getElementById("input");
   const sendBtn = document.getElementById("send");
   const hintEl = document.getElementById("hint");
+  let chatOpener = null;
 
   function openChat(c) {
+    if (!chatEl.contains(document.activeElement)) chatOpener = document.activeElement;
     stopTgRecv();
     activeChar = c;
     sendBtn.disabled = !!c.busy;
     chatEl.setAttribute("aria-hidden", "false");
+    chatEl.inert = false;
+    wrap.classList.add("chat-open");
     document.getElementById("chat-dot").style.background = c.color;
     document.getElementById("chat-name").textContent = c.name;
     document.getElementById("chat-role").textContent = c.role;
@@ -388,7 +410,8 @@
     // Fresh start every click: wipe this character's conversation history.
     history[c.id] = [];
 
-    inputEl.focus();
+    if (mobileView()) window.scrollTo(0, 0);
+    inputEl.focus({ preventScroll: true });
 
     // Spark Monitor: don't just greet - auto-pull a live status summary.
     if (c.live === "sysinfo" || c.id === "sysmon") {
@@ -435,16 +458,29 @@
     msgsEl.scrollTop = msgsEl.scrollHeight;
   }
 
-  function closeChat() {
+  function closeChat({ restoreFocus = true } = {}) {
+    if (!activeChar) return;
+    const focusWasInChat = chatEl.contains(document.activeElement);
     chatEl.classList.remove("open");
+    wrap.classList.remove("chat-open");
     chatEl.setAttribute("aria-hidden", "true");
+    chatEl.inert = true;
     emit("agent", null);
     stopTgRecv();
     maCleanup();
     activeChar = null;
     if (chars.length) hintEl.style.opacity = "1";
+    if (focusWasInChat) {
+      if (restoreFocus && chatOpener?.isConnected && chatOpener !== document.body) chatOpener.focus({ preventScroll: true });
+      else document.activeElement.blur();
+    }
   }
-  document.getElementById("chat-close").addEventListener("click", closeChat);
+  document.getElementById("chat-close").addEventListener("click", () => closeChat());
+  document.addEventListener("click", e => {
+    if (!activeChar || document.querySelector("dialog[open]")) return;
+    if (e.target.closest("#chat, dialog, #game, [data-agent], [data-mission='team'], [data-mission='research'], #motion-toggle")) return;
+    closeChat({ restoreFocus: false });
+  });
 
   function escapeHtml(s) {
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -846,13 +882,27 @@
     };
     setInterval(ping, 60000); // re-scan once a minute from first click onward
   }
+  function reflow() {
+    resize();
+    chars.forEach((c,i) => { const h=home(i); c.x=c.tx=h.x; c.y=c.ty=h.y; });
+    const a = arena(), offset = mobileView() ? 65 : 105;
+    for (const k of maKids) { k.tx = a.x + (k.role === "pm" ? -offset : offset); k.ty = a.y - 55; }
+    buildBackground();
+  }
+  // The stage changes size when the panel docks, even without a window resize.
+  const stageObserver = new ResizeObserver(reflow);
+  stageObserver.observe(canvas);
+  stageObserver.observe(document.getElementById("agent-roster"));
   window.addEventListener("resize", () => {
-    chars.forEach((c,i) => { const h=home(i); c.x=c.tx=h.x; c.y=c.ty=h.y; }); buildBackground();
+    // Animate docking, but apply viewport changes immediately across breakpoints.
+    canvas.style.transition = "none";
+    reflow();
+    requestAnimationFrame(() => canvas.style.removeProperty("transition"));
   });
   window.BacDemo = {
     getAgents: () => chars, getActive: () => activeChar,
     openAgent(id) { const c=chars.find(a=>a.id===id); if(c && c!==activeChar) openChat(c); },
-    runTurn, addMsg,
+    runTurn, addMsg, closeChat,
     motion(value) { motionPaused=value; },
     isPaused: () => motionPaused,
     busy(id,value) { const c=chars.find(a=>a.id===id); if(c)c.busy=value; },

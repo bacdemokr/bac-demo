@@ -25,6 +25,34 @@ async function freePort(){const s=http.createServer();await new Promise(r=>s.lis
     await page.goto(base);await page.waitForFunction(()=>window.BacDemo?.getAgents().length===7);await wait(300);
     assert.equal(await page.locator('#agent-roster button').count(),7);
     if(process.env.SCREENSHOT_DIR){fs.mkdirSync(process.env.SCREENSHOT_DIR,{recursive:true});await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'bac-demo-preview.png')});}
+    const visibleAgents=()=>page.evaluate(()=>{
+      const canvas=document.querySelector('#game'),bounds=canvas.getBoundingClientRect(),compact=innerWidth<=900;
+      const scale=compact?.76:1;
+      return window.BacDemo.getAgents().map(c=>({
+        name:c.name,
+        visible:c.x-40*scale>=0&&c.x+60*scale<=bounds.width&&c.y-54*scale>=0&&c.y+65*scale<=bounds.height&&document.elementFromPoint(bounds.left+c.x,bounds.top+c.y)===canvas
+      }));
+    });
+    await page.locator('[data-agent=scout]').click();await wait(550);
+    assert((await visibleAgents()).every(a=>a.visible),'All desktop agents should remain visible beside the chat panel.');
+    await page.locator('#input').fill('draft');await page.locator('[data-agent=scout]').click();assert.equal(await page.locator('#input').inputValue(),'draft');
+    await page.locator('#chat-head').click();assert.equal(await page.evaluate(()=>window.BacDemo.getActive()?.id),'scout');
+    if(process.env.SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'bac-demo-chat-preview.png')});
+    for(const size of [{width:1100,height:900},{width:934,height:700}]){
+      await page.setViewportSize(size);await wait(550);
+      assert((await visibleAgents()).every(a=>a.visible),'Agents should remain visible at '+JSON.stringify(size));
+    }
+    await page.mouse.click(8,460);await wait(450);assert.equal(await page.evaluate(()=>window.BacDemo.getActive()),null);
+    assert.equal(await page.locator('#chat').getAttribute('inert'),'');
+    await page.setViewportSize({width:1440,height:900});await wait(450);
+    const clickAgent=async id=>{const point=await page.evaluate(id=>{const c=window.BacDemo.getAgents().find(a=>a.id===id),r=document.querySelector('#game').getBoundingClientRect();return {x:c.x+r.left,y:c.y+r.top};},id);await page.mouse.click(point.x,point.y);await wait(450);};
+    await clickAgent('scout');assert.equal(await page.evaluate(()=>window.BacDemo.getActive()?.id),'scout');
+    await clickAgent('github');assert.equal(await page.locator('#chat-name').textContent(),'GitHubAgent');
+    await page.keyboard.press('Escape');await wait(450);assert.equal(await page.evaluate(()=>window.BacDemo.getActive()),null);
+    await page.locator('[data-agent=scout]').click();await page.locator('#agent-actions button').click();
+    await page.locator('#browser-query').fill('draft query');assert.equal(await page.evaluate(()=>window.BacDemo.getActive()?.id),'scout');
+    await page.locator('[data-close=browser-dialog]').click();await page.locator('#chat-close').click();await wait(450);
+    console.log('Panel passed: visible agents at desktop/tablet widths, canvas selection, agent switching, draft retention, outside click, Escape, inert closed panel, nested dialog.');
     await page.locator('[data-mission=browser]').click();assert(await page.locator('#browser-dialog').isVisible());
     await page.locator('#browser-run').click();await page.waitForFunction(()=>document.querySelector('#browser-note').textContent.includes('Chromium에 연결할 수 없습니다'));
     assert.equal(await page.locator('#browser-frame').isVisible(),false);assert(await page.locator('#browser-share').isDisabled());
@@ -58,6 +86,14 @@ async function freePort(){const s=http.createServer();await new Promise(r=>s.lis
     await page.reload();await page.waitForFunction(()=>window.BacDemo?.getAgents().length===7);
     await page.locator('#activity-clear').scrollIntoViewIfNeeded();assert(await page.evaluate(()=>window.scrollY>0));await page.evaluate(()=>scrollTo(0,0));await wait(250);
     if(process.env.SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'bac-demo-mobile.png'),fullPage:true});
+    await page.locator('[data-agent=scout]').click();await wait(550);
+    assert((await visibleAgents()).every(a=>a.visible),'Mobile agents should remain visible above the bottom sheet.');
+    assert(await page.locator('#input').isVisible());
+    if(process.env.SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'bac-demo-mobile-chat.png')});
+    await page.setViewportSize({width:390,height:650});await wait(450);
+    assert((await visibleAgents()).every(a=>a.visible),'Mobile agents should remain visible in a shorter viewport.');
+    await page.mouse.click(10,35);await wait(450);assert.equal(await page.evaluate(()=>window.BacDemo.getActive()),null);
+    await page.setViewportSize({width:390,height:844});await wait(450);
     assert.deepEqual(errors,[]);
     console.log('UI passed: desktop/mobile, connection forms, no automatic send, safe inbox rendering, POST chat, unavailable browser.');
     // Actual CDP run against a deterministic local search page, not a mocked screenshot.
