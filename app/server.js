@@ -1,5 +1,5 @@
 /**
- * BaC Multi-Agent Demo — tiny web server
+ * BaC Multi-Agent Demo - tiny web server
  *
  * - Serves the Canvas game in ./public
  * - GET  /api/agents   -> character config
@@ -31,7 +31,7 @@ const TOKEN =
     : fs.existsSync("/tmp/gw_token.txt")
     ? fs.readFileSync("/tmp/gw_token.txt", "utf8").trim()
     : "");
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 8081;
 
 // GitHub account used by the GitHubAgent (repo listing) and the multi-agent
 // orchestrator (which opens a real PR). Override via env. The PAT you give the
@@ -59,19 +59,18 @@ const AGENTS = {
     agent: "bac",
     model: OPUS_MODEL,
     live: "sysinfo",
-    tagline: "Hi! I watch this Spark's GPU, memory & disk health. 📊",
-    // English intro (the whole demo audience is non-Korean)
+    tagline: "Spark의 GPU와 디스크 상태를 살펴봐요. 📊",
     intro:
-      "Hi! I'm HealthAgent. I keep an eye on this machine's health — GPU, memory, and disk. Click me and I'll give you a quick status report.",
-    // System prompt steers the agent: English only + uses the live metrics.
+      "Spark의 GPU·메모리·디스크 상태를 확인해요. 현재 시스템 지표를 가져와 요약해드릴게요.",
+    // Uses actual local metrics and follows the language of the request.
     system:
       "You are 'HealthAgent', a friendly system-health agent for an NVIDIA Spark device, shown at a BaC event. " +
-      "ALWAYS reply in English, concise and friendly, suitable for a live demo audience. " +
+      "Reply in the language used by the user, concise and friendly. " +
       "You are given a LIVE SYSTEM SNAPSHOT (from nvidia-smi and df -h). " +
       "When asked about status, summarize the most important metrics in a few short bullet points: " +
       "GPU name, GPU utilization, GPU memory used/total, GPU temperature, and root-disk usage. " +
       "Call out anything that looks concerning (high temp, low free disk, high utilization). Keep it brief.\n" +
-      "FORMAT: Begin your reply with a single line starting with 'SUMMARY: ' followed by a very short one-line headline (max ~10 words, e.g. 'SUMMARY: All healthy — GB10 idle, 44°C, disk 6%'). Then a blank line, then your bullet points.",
+      "FORMAT: Begin your reply with a single line starting with 'SUMMARY: ' followed by a very short one-line headline (max ~10 words, e.g. 'SUMMARY: All healthy - GB10 idle, 44°C, disk 6%'). Then a blank line, then your bullet points.",
   },
 
   scout: {
@@ -81,15 +80,15 @@ const AGENTS = {
     agent: "bac",
     model: process.env.BROWSER_MODEL || process.env.DEMO_MODEL || "ollama/gemma4:latest",
     live: "search",
-    tagline: "Hi! I search Naver live in a real browser — just ask. 🔍",
+    tagline: "실제 브라우저를 열고 웹을 탐색해요. 🔍",
     intro:
-      "Hey! I'm NaverAgent. Ask me anything and I'll search it live on Naver (Korea's top search engine) using a real browser, then summarize what I find — in English.",
+      "Naver·Google·Daum을 실제 브라우저에서 탐색해요. 검색어를 입력하거나 실제 브라우저 탐색 버튼을 눌러보세요. 탐색 후 요약을 요청할 수 있어요.",
     system:
       "You are 'NaverAgent', a live web-search agent shown at a BaC event. " +
-      "ALWAYS reply in English, even though the search results may be in Korean. " +
-      "You are given LIVE NAVER SEARCH RESULTS (scraped just now from a real browser session). " +
-      "Summarize the key findings for the user's query in a few concise bullet points, translating any Korean into English. " +
-      "Mention that a screenshot of the live Naver results page is shown below. Be friendly and concise for a demo audience.\n" +
+      "Reply in the language used by the user. " +
+      "You are given LIVE WEB SEARCH RESULTS from the selected search provider (scraped just now from a real browser session). " +
+      "Summarize the key findings in concise bullet points using the user's language. Include source links when supplied. " +
+      "Mention that an actual browser screenshot is shown below. Be friendly and concise for a demo audience.\n" +
       "FORMAT: Begin your reply with a single line starting with 'SUMMARY: ' followed by a very short one-line headline answering the query (max ~12 words). Then a blank line, then your bullet points.",
   },
 
@@ -100,17 +99,23 @@ const AGENTS = {
     agent: "git",
     model: OPUS_MODEL,
     live: "github",
-    tagline: "Hi! I manage your GitHub — repos, forks, PRs. 🐙",
+    tagline: "저장소와 PR 작업을 도와드려요. 🐙",
     intro:
-      "Hi! I'm GitHubAgent, connected to the GitHub account 'bacdemokr'. Ask me to list your repositories, fork a repo, open a pull request, and more.",
+      `GitHub 도구가 설정된 gateway를 통해 ${GH_OWNER}의 저장소·이슈·PR을 다룰 수 있어요. 먼저 저장소 목록을 요청해보세요.`,
     system:
       "You are 'GitHubAgent', a GitHub assistant shown at a BaC event. " +
-      "You operate on the GitHub account 'bacdemokr' (the authenticated account). ALWAYS reply in English, concise and friendly for a live demo. " +
+      `You operate on the configured GitHub account ${GH_OWNER}. Reply in the user's language, concise and friendly. ` +
       "Use the available GitHub tools to actually perform the user's request (fork, create branches, open or list pull requests, read issues, read files, etc.). " +
-      "You are given a LIVE list of the account's repositories (fetched just now) in a system message — use it to answer questions about which repos exist. The account owner is 'bacdemokr'. " +
-      "When you take an action (fork, PR, branch, etc.), you MUST ALWAYS reply afterward with a clear confirmation: state plainly that it succeeded (or failed), what you did, and include the resulting URL or PR/issue number. NEVER leave the reply empty or stop after just calling a tool — the user needs to see the outcome in chat. If a fork takes a moment, still confirm it was created and give the expected URL (https://github.com/bacdemokr/<repo>). " +
+      `You are given a repository list for ${GH_OWNER}; use it to answer questions about which repos exist. ` +
+      "When you take an action (fork, PR, branch, etc.), you MUST ALWAYS reply afterward with a clear confirmation: state plainly that it succeeded (or failed), what you did, and include the resulting URL or PR/issue number. NEVER leave the reply empty or stop after just calling a tool - the user needs to see the outcome in chat. Report success only after a tool confirms it, and include the actual returned URL. " +
       "Keep answers short but never skip the confirmation.\n" +
       "FORMAT: Begin your reply with a single line starting with 'SUMMARY: ' followed by a very short one-line headline (max ~12 words). Then a blank line, then your details.",
+  },
+
+  agentmail: {
+    name: "MailAgent", color: "#f09abb", role: "AgentMail Inbox", live: "agentmail",
+    tagline: "검색 결과를 이메일로 보내고 받은편지함을 확인해요.",
+    intro: "AgentMail 받은편지함을 확인하거나 검색·논문 결과를 이메일로 공유할 수 있어요. 설정에서 API key와 기존 Inbox ID를 연결해주세요.",
   },
 
   telegram: {
@@ -120,9 +125,9 @@ const AGENTS = {
     live: "telegram",
     // No gateway agent / model: this bot is a direct two-way bridge to a real
     // Telegram chat, handled specially on the client (not via the LLM).
-    tagline: "Hi! Chat with me here and it goes straight to Telegram — and back. 💬",
+    tagline: "선택한 Telegram 채팅과 메시지를 주고받아요. 💬",
     intro:
-      "Hi! I'm TelegramAgent, a live two-way bridge. Anything you type here is sent to a real Telegram chat, and replies from Telegram show up right here in real time.",
+      "연결 설정에서 별도 봇의 Bot token과 Chat ID를 등록해주세요. 입력한 메시지는 선택한 Telegram 채팅에 보내고, 그 채팅의 답장은 이곳에 표시해요.",
   },
 
   multiagent: {
@@ -132,9 +137,9 @@ const AGENTS = {
     live: "multiagent",
     // Orchestrator: spawns a PM subagent and a Dev subagent. PM plans, hands
     // the plan to Dev, Dev ships a real commit + PR to bacdemokr/bac-demo.
-    tagline: "Ask me to build a feature — I'll have my PM plan it and my Dev ship a real PR. 🤖➡️💻",
+    tagline: "PM이 설계하고 Dev가 구현하는 협업을 보여드려요. 🤖➡️💻",
     intro:
-      "Hi! I'm the OrchestratorAgent. Tell me a feature to build and I'll spawn two teammates: a PM who writes the plan, then a Dev who implements it and opens a real pull request on the configured demo repo. Watch them hand off the work!",
+      "만들고 싶은 기능을 요청하면 PM이 계획을 세우고 Dev가 구현해서 설정된 GitHub 저장소에 실제 PR을 만들어요. 두 에이전트가 작업을 넘겨주는 과정을 지켜보세요.",
   },
 
   arxiv: {
@@ -147,24 +152,24 @@ const AGENTS = {
     // Demo purpose: show a CRON JOB. Every minute a cron job refreshes the
     // top-3 Agentic AI papers from arXiv and the character pops a bubble on its
     // own (no click needed). Clicking lists the current Top 3.
-    tagline: "📚 I scan arXiv every minute for the hottest Agentic AI papers — click me!",
+    tagline: "📚 에이전트 AI 논문 모음을 확인하고 공유해요.",
     intro:
-      "Hi! I'm ArxivAgent. A cron job wakes me up every minute to scan arXiv for the most interesting new Agentic AI papers. I'll pop up on my own when there's an update — click me anytime to see my current Top 3 picks.",
+      "arXiv의 에이전트 AI 논문을 확인해요. 조회를 시작하면 페이지가 열린 동안 1분마다 모음을 확인합니다. 최신 피드가 없으면 참고 논문임을 표시해요.",
     system:
       "You are 'ArxivAgent', an agent that tracks the latest Agentic-AI research on arXiv, shown at a BaC event. " +
-      "ALWAYS reply in English, friendly and concise for a live demo audience. " +
-      "You are given a LIVE list of the current Top 3 Agentic-AI papers (fetched just now from the arXiv cs.AI feed). " +
-      "Format your reply like a polished SLACK message — visual and scannable, NOT a plain numbered list. Use this structure:\n" +
+      "Reply in the user's language, friendly and concise. " +
+      "Use only the provided paper list. Respect its source label: reference or cached papers must not be described as new publications. " +
+      "Format your reply like a polished SLACK message - visual and scannable, NOT a plain numbered list. Use this structure:\n" +
       "• Open with one short friendly line, e.g. '📚 *Here are my top Agentic AI picks right now:*'\n" +
       "• For EACH paper, use this block:\n" +
       "    *1\uFE0F\u20E3 <bold title>*\n" +
       "    👥 _authors (first 2–3, then 'et al.' if more)_\n" +
-      "    💡 one-sentence plain-English takeaway\n" +
+      "    💡 one-sentence takeaway in the user's language\n" +
       "    🔗 the arXiv link\n" +
       "• Put a blank line between papers so they read as separate cards. Use 1\uFE0F\u20E3 2\uFE0F\u20E3 3\uFE0F\u20E3 for the three papers.\n" +
       "• End with one inviting line like '🚀 Curious about any of these? Ask me anything!'\n" +
-      "Keep each takeaway to ONE short sentence. Do not invent papers or links — use only the provided list.\n" +
-      "FORMAT: Begin your reply with a single line starting with 'SUMMARY: ' followed by a very short one-line headline (max ~12 words, e.g. 'SUMMARY: Top 3 fresh Agentic AI papers'). Then a blank line, then the Slack-style cards.",
+      "Keep each takeaway to ONE short sentence. Do not invent papers or links - use only the provided list.\n" +
+      "FORMAT: Begin your reply with a single line starting with 'SUMMARY: ' followed by a very short one-line headline (max ~12 words, e.g. 'SUMMARY: Three Agentic AI paper picks'). Then a blank line, then the Slack-style cards.",
   },
 };
 // ---------------------------------------------------------------------------
@@ -284,6 +289,7 @@ function getSearch(query) {
 // top 3. Result is cached so a once-a-minute cron refresh never hammers arXiv.
 let ARXIV_CACHE = { at: 0, papers: [], text: "" };
 let ARXIV_POOL = { all: [], nvPool: [], offset: 0, fetchedAt: 0 };
+let arxivSource = "cached";
 const ARXIV_FILE = "/tmp/arxiv_top3.json";
 
 // Fallback Top-3 pool: arXiv publishes nothing on weekends/holidays, so the
@@ -294,7 +300,7 @@ const ARXIV_FALLBACK = [
     title: "ReAct: Synergizing Reasoning and Acting in Language Models",
     authors: "Shunyu Yao, Jeffrey Zhao, Dian Yu, et al.",
     link: "https://arxiv.org/abs/2210.03629",
-    summary: "Interleaves chain-of-thought reasoning with tool-using actions, letting an LLM agent plan, act, and observe in a loop — a foundational pattern for modern agents.",
+    summary: "Interleaves chain-of-thought reasoning with tool-using actions, letting an LLM agent plan, act, and observe in a loop - a foundational pattern for modern agents.",
     nvidia: false,
   },
   {
@@ -315,14 +321,14 @@ const ARXIV_FALLBACK = [
     title: "Voyager: An Open-Ended Embodied Agent with Large Language Models",
     authors: "Guanzhi Wang, Yuqi Xie, Yunfan Jiang, et al.",
     link: "https://arxiv.org/abs/2305.16291",
-    summary: "An NVIDIA-led LLM agent that autonomously explores Minecraft, writes and stores reusable skills as code, and continually learns — a landmark lifelong-learning agent.",
+    summary: "An NVIDIA-led LLM agent that autonomously explores Minecraft, writes and stores reusable skills as code, and continually learns - a landmark lifelong-learning agent.",
     nvidia: true,
   },
   {
     title: "MetaGPT: Meta Programming for a Multi-Agent Collaborative Framework",
     authors: "Sirui Hong, Mingchen Zhuge, Jonathan Chen, et al.",
     link: "https://arxiv.org/abs/2308.00352",
-    summary: "Encodes human SOPs into a multi-agent team (PM, architect, engineer) that collaborates to build software — directly mirrors this demo's OrchestratorAgent.",
+    summary: "Encodes human SOPs into a multi-agent team (PM, architect, engineer) that collaborates to build software - directly mirrors this demo's OrchestratorAgent.",
     nvidia: false,
   },
 ];
@@ -343,8 +349,8 @@ function formatArxivAnnouncement(papers) {
     return list.length > 2 ? list.slice(0, 2).join(", ") + ", et al." : list.join(", ");
   };
   const lines = [];
-  lines.push("\uD83D\uDCE2 *Agentic AI \u2014 Today's Top 3 on arXiv*");
-  lines.push("_Fresh from my latest scan \u2014 here's what's worth a read \uD83D\uDC47_");
+  lines.push("\uD83D\uDCE2 *Agentic AI - arXiv paper picks*");
+  lines.push("_Three papers to explore \uD83D\uDC47_");
   papers.forEach((p, i) => {
     lines.push("");
     lines.push("\u2015\u2015\u2015\u2015\u2015\u2015\u2015\u2015\u2015\u2015");
@@ -355,7 +361,7 @@ function formatArxivAnnouncement(papers) {
     if (p.link) lines.push(`\uD83D\uDD17 ${p.link}`);
   });
   lines.push("");
-  lines.push("\uD83D\uDE80 Want me to dig into any of these? Just ask \u2014 methods, results, anything!");
+  lines.push("\uD83D\uDE80 Want me to dig into any of these? Just ask - methods, results, anything!");
   return lines.join("\n");
 }
 
@@ -400,6 +406,7 @@ async function getArxivTop3(force) {
   const poolStale = !ARXIV_POOL.all.length || now - ARXIV_POOL.fetchedAt > 600000;
   if (poolStale && !(ARXIV_POOL.refetching)) {
     ARXIV_POOL.refetching = true;
+    if (arxivSource === "live") arxivSource = "cached";
     try {
       const xml = await fetchUrl("https://rss.arxiv.org/rss/cs.AI");
       const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].map((m) => m[1]);
@@ -429,6 +436,7 @@ async function getArxivTop3(force) {
         if (KW.test(title) || KW.test(desc)) all.push(rec);
       }
       if (all.length || nvPool.length) {
+        arxivSource = "live";
         ARXIV_POOL = { all, nvPool, offset: ARXIV_POOL.offset || 0, fetchedAt: now, refetching: false };
       } else {
         ARXIV_POOL.refetching = false;
@@ -442,6 +450,7 @@ async function getArxivTop3(force) {
   // If the live feed gave us nothing (e.g. weekend/holiday), use the fallback
   // pool so the ArxivAgent is never blank.
   if (!ARXIV_POOL.all.length && !ARXIV_POOL.nvPool.length) {
+    arxivSource = "reference";
     const nvPool = ARXIV_FALLBACK.filter((p) => p.nvidia);
     ARXIV_POOL = { all: ARXIV_FALLBACK.slice(), nvPool, offset: ARXIV_POOL.offset || 0, fetchedAt: now, refetching: false };
   }
@@ -554,9 +563,8 @@ async function handleChatParsed(parsed, done) {
       role: "system",
       content:
         "CRITICAL: You are a single-purpose demo bot. Stay 100% in the role defined below. " +
-        "NEVER mention OpenClaw, sessions, models, tokens, context windows, skills, cron, sub-agents, " +
-        "working directories, or any local files. NEVER output a session-status card. " +
-        "NEVER say you lack access or a tool. Treat the LIVE data given in these system messages as " +
+        "Keep answers focused on the user's task. Do not output session-status cards or expose credentials. " +
+        "Be honest about unavailable tools and failed requests. Treat the LIVE data given in these system messages as " +
         "ground truth and answer the user directly using ONLY that data and the role below.",
     });
     if (cfg.system) sys.push({ role: "system", content: cfg.system });
@@ -580,12 +588,16 @@ async function handleChatParsed(parsed, done) {
       // last user message is the query
       const lastUser = [...messages].reverse().find((m) => m.role === "user");
       const query = (lastUser && lastUser.content) || "";
-      const sr = await getSearch(query);
-      if (sr.screenshot) extra.screenshot = sr.screenshot + "?t=" + Date.now();
+      const sr = parsed.searchJobId ? showcase.browser.public(parsed.searchJobId) : await getSearch(query);
+      if (sr.error || (parsed.searchJobId && (sr.status !== "done" || sr.query !== query))) {
+        return done(502, { error: sr.error || "브라우저 검색 결과를 확인할 수 없습니다." });
+      }
+      if (!(sr.results || []).length) return done(502, { error: "검색 결과가 비어 있습니다. 브라우저 화면에서 접근 제한을 확인해주세요." });
+      if (sr.screenshot) extra.screenshot = sr.screenshot + (sr.screenshot.includes("?") ? "&" : "?") + "t=" + Date.now();
       sys.push({
         role: "system",
         content:
-          "LIVE NAVER SEARCH RESULTS for query \"" + query + "\" (JSON):\n" +
+          "LIVE WEB SEARCH RESULTS for query \"" + query + "\" (JSON):\n" +
           JSON.stringify(sr.results || [], null, 2),
       });
     }
@@ -594,7 +606,7 @@ async function handleChatParsed(parsed, done) {
       sys.push({
         role: "system",
         content:
-          "LIVE list of repositories on the 'bacdemokr' GitHub account (fetched just now):\n" +
+          `LIVE list of repositories on the configured ${GH_OWNER} GitHub account:\n` +
           JSON.stringify(repos, null, 2),
       });
     }
@@ -603,7 +615,7 @@ async function handleChatParsed(parsed, done) {
       sys.push({
         role: "system",
         content:
-          "LIVE Top 3 Agentic-AI papers (fetched just now from the arXiv cs.AI feed):\n" +
+          `Agentic-AI paper list (source: ${arxivSource}; reference means curated fallback, not fresh papers):\n` +
           JSON.stringify(papers, null, 2),
       });
     }
@@ -825,20 +837,20 @@ async function runMultiagent(job) {
   push(job, "spawn", "orchestrator", `Spinning up the team for: "${job.request}". Meet my PM and my Dev! 👶👶`);
 
   // Stage 1: PM plans
-  push(job, "pm-start", "pm", `On it — planning "${job.request}"… 🧠`);
+  push(job, "pm-start", "pm", `On it - planning "${job.request}"… 🧠`);
   const pmSys =
     "You are the PM (product manager) on a fast live demo at BaC. " +
     "Reply in English, VERY concise. You are given a JSON index of the configured demo repo (a Node.js " +
     "application). For a safe live demo, the feature is implemented as ONE small, self-contained, " +
     "RUNNABLE code module under '" + targetDir + "' (do NOT touch real src/). " +
     "Write a crisp plan (3-5 short bullet points) describing the actual functions/behavior the Dev must " +
-    "implement — real code, not just docs. End with one line: 'FILE: <filename>.js' naming the single " +
+    "implement - real code, not just docs. End with one line: 'FILE: <filename>.js' naming the single " +
     "JavaScript file the Dev should create under " + targetDir + ".\n\n" +
     "REPO INDEX:\n" + JSON.stringify(idx).slice(0, 2000);
   let plan = await callAgent("pm", pmSys, `Feature request: ${job.request}`, OPUS_MODEL);
   if (!plan || !plan.trim()) {
     plan = `- Implement "${job.request}" as a tiny standalone, runnable JS module.\n- Keep it dependency-free.\n- Export the main function(s) and document usage at the top.\nFILE: ${slug}.js`;
-    push(job, "pm-fallback", "pm", "(PM was slow — orchestrator drafted the plan.)");
+    push(job, "pm-fallback", "pm", "(PM was slow - orchestrator drafted the plan.)");
   }
   let fileName = `${slug}.js`;
   const fm = plan.match(/FILE:\s*([^\s`]+)/i);
@@ -850,7 +862,7 @@ async function runMultiagent(job) {
   push(job, "pm-done", "pm", planClean, { plan: planClean, fileName });
 
   // Stage 2: handoff (PM physically hands the box to Dev)
-  push(job, "handoff", "pm", `Here you go, Dev — build ${fileName}. 📦➡️`, { fileName });
+  push(job, "handoff", "pm", `Here you go, Dev - build ${fileName}. 📦➡️`, { fileName });
 
   // Stage 3: Dev actually WRITES THE CODE -> real commit + PR
   push(job, "dev-start", "dev", `Got the plan! Coding ${targetDir}${fileName} now… 🔨`);
@@ -858,7 +870,7 @@ async function runMultiagent(job) {
   const ext = (fileName.match(/\.([a-z]+)$/i) || [, "js"])[1].toLowerCase();
   const devSys =
     "You are a CODE GENERATOR, not a chatbot. Output ONLY the raw contents of a single " + ext.toUpperCase() + " file. " +
-    "ABSOLUTELY NO prose, NO explanations, NO markdown, NO code fences, NO greetings, NO summaries — " +
+    "ABSOLUTELY NO prose, NO explanations, NO markdown, NO code fences, NO greetings, NO summaries - " +
     "your entire response must be valid " + ext.toUpperCase() + " source that could be saved directly to disk and run. " +
     "Implement the PM's plan as real, working, dependency-free Node-compatible code. " +
     "Start with a short // comment describing usage, then the implementation, then a tiny self-test at the bottom. " +
@@ -868,7 +880,8 @@ async function runMultiagent(job) {
   code = cleanCode(code, ext);
   console.log(`[ma ${job.id}] dev clean len=${(code||"").length}`);
   if (!code || !code.trim()) {
-  code = `// ${job.request}\n// (Dev fallback stub — generated by BaC OrchestratorAgent demo)\nmodule.exports = function () {\n  throw new Error("not yet implemented");\n};\n`;
+    push(job, "error", "dev", "코드 생성에 실패했습니다. Gateway와 모델 연결을 확인해주세요. PR은 생성되지 않았습니다.");
+    job.done = true; return;
   }
   const header = `// ${job.request}\n// Built live by the BaC OrchestratorAgent demo (PM → Dev). ${now.toISOString()}\n\n`;
   const content = header + code + "\n";
@@ -953,91 +966,12 @@ function ghReq(method, p, body) {
   });
 }
 
-// ----- Telegram two-way bridge ---------------------------------------------
-// A dedicated bot independently long-polls getUpdates and buffers inbound
-// messages. The UI sends via /bac-tg-send and receives via /bac-tg-recv.
-const TG_API = TG_TOKEN ? `https://api.telegram.org/bot${TG_TOKEN}` : null;
-const TG_INBOX = [];          // { id, from, text, t } received from Telegram
-let TG_MSG_SEQ = 0;           // monotonically increasing id we hand to the UI
-let TG_LAST_CHAT = null;      // last chat id that messaged us (reply target)
+// Runtime integration settings are held in server memory only.
+const { createShowcase } = require("./showcase-api");
+const showcase = createShowcase({ telegramToken: TG_TOKEN, gateway: GATEWAY, gatewayToken: TOKEN });
 
-function tgApi(method, params) {
-  return new Promise((resolve) => {
-    if (!TG_API) return resolve({ ok: false, error: "no token" });
-    const u = new URL(`${TG_API}/${method}`);
-    const body = JSON.stringify(params || {});
-    const opts = {
-      method: "POST",
-      hostname: u.hostname,
-      path: u.pathname + u.search,
-      headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) },
-    };
-    const rq = require("https").request(opts, (rs) => {
-      let out = "";
-      rs.on("data", (c) => (out += c));
-      rs.on("end", () => { try { resolve(JSON.parse(out)); } catch { resolve({ ok: false }); } });
-    });
-    rq.on("error", (e) => resolve({ ok: false, error: e.message }));
-    rq.setTimeout(70000, () => rq.destroy(new Error("tg timeout")));
-    rq.write(body); rq.end();
-  });
-}
-
-let tgOffset = 0;
-async function tgPollLoop() {
-  if (!TG_API) { console.log("[tg] no token — bridge disabled"); return; }
-  // Drop any backlog so we only surface messages from now on.
-  try {
-    const init = await tgApi("getUpdates", { timeout: 0, offset: -1 });
-    if (init.ok && init.result && init.result.length) {
-      tgOffset = init.result[init.result.length - 1].update_id + 1;
-    }
-  } catch {}
-  console.log(`[tg] bridge live (offset=${tgOffset})`);
-  for (;;) {
-    try {
-      const up = await tgApi("getUpdates", { timeout: 50, offset: tgOffset });
-      if (up && up.ok && Array.isArray(up.result)) {
-        for (const u of up.result) {
-          tgOffset = u.update_id + 1;
-          const m = u.message || u.edited_message;
-          if (!m || !m.text) continue;
-          TG_LAST_CHAT = m.chat && m.chat.id;
-          const from = (m.from && (m.from.first_name || m.from.username)) || "Telegram";
-          TG_INBOX.push({ id: ++TG_MSG_SEQ, from, text: m.text, t: Date.now() });
-          if (TG_INBOX.length > 200) TG_INBOX.shift();
-          console.log(`[tg] <- ${from}: ${m.text.slice(0, 60)}`);
-        }
-      } else if (up && up.error) {
-        await new Promise((r) => setTimeout(r, 3000));
-      }
-    } catch (e) {
-      await new Promise((r) => setTimeout(r, 3000));
-    }
-  }
-}
-
-async function tgSend(text, res) {
-  const target = TG_LAST_CHAT || process.env.TG_CHAT_ID || null;
-  if (!target) {
-    return send(res, 200, {
-      ok: false,
-      note: "No Telegram chat yet — send /start (or any message) to the bot first so it knows who to reply to.",
-    });
-  }
-  const r = await tgApi("sendMessage", { chat_id: target, text });
-  console.log(`[tg] -> ${target}: ${String(text).slice(0, 60)} ok=${r && r.ok}${r && !r.ok ? " err=" + (r.description || r.error || "?") : ""}`);
-  send(res, 200, { ok: !!(r && r.ok), error: (r && (r.description || r.error)) || null });
-}
-
-function tgRecv(sinceId, res) {
-  const since = parseInt(sinceId, 10) || 0;
-  const msgs = TG_INBOX.filter((m) => m.id > since)
-    .map((m) => ({ id: m.id, from: m.from, text: m.text }));
-  send(res, 200, { messages: msgs, lastId: TG_MSG_SEQ });
-}
-
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
+  if (await showcase.handle(req, res)) return;
   console.log(`[req] ${req.method} len=${req.url.length} ${req.url.slice(0, 60)}`);
   // Poll for an async job result: /bac-poll/<jobId>.json
   const mPoll = req.url.match(/^\/bac-poll\/([^/?.]+)\.json/);
@@ -1058,24 +992,12 @@ const server = http.createServer((req, res) => {
   // ArxivAgent: current Top-3 Agentic-AI papers (polled once a minute by the UI).
   if (req.url.startsWith("/bac-arxiv/top3")) {
     return getArxivTop3().then((papers) =>
-      send(res, 200, { papers, text: ARXIV_CACHE.text || "", at: ARXIV_CACHE.at })
+      send(res, 200, { papers, text: ARXIV_CACHE.text || "", at: ARXIV_CACHE.at, source: arxivSource })
     );
   }
-  // Telegram bridge: send (UI -> Telegram), disguised as a static asset.
-  const mTgSend = req.url.match(/^\/bac-tg-send\/([^/?]+?)\.json/);
-  if (mTgSend) {
-    let text = "";
-    try {
-      let b64 = mTgSend[1].replace(/-/g, "+").replace(/_/g, "/");
-      while (b64.length % 4) b64 += "=";
-      const parsed = JSON.parse(Buffer.from(b64, "base64").toString("utf8"));
-      text = String(parsed.text || "");
-    } catch { return send(res, 400, { error: "bad json" }); }
-    return tgSend(text, res);
-  }
-  // Telegram bridge: receive (Telegram -> UI). /bac-tg-recv/<sinceId>.json
+  // Legacy receive URL remains read-only. Sends now require a same-origin JSON POST.
   const mTgRecv = req.url.match(/^\/bac-tg-recv\/([0-9]+)\.json/);
-  if (mTgRecv) return tgRecv(mTgRecv[1], res);
+  if (mTgRecv) return send(res, 200, showcase.telegram.receive(Number(mTgRecv[1])));
   if (req.url.startsWith("/api/agents")) return handleAgents(res);
   if (req.url.startsWith("/api/sysinfo")) return handleSysInfo(res);
   if (req.url.startsWith("/bac-data/")) return handleChat(req, res);
@@ -1088,7 +1010,7 @@ server.listen(PORT, process.env.HOST || "127.0.0.1", () => {
   console.log(`BaC demo on http://127.0.0.1:${PORT}`);
   console.log(`Proxying to ${GATEWAY} (token ${TOKEN ? "loaded" : "MISSING"})`);
   console.log(`Telegram bridge token ${TG_TOKEN ? "loaded" : "MISSING"}`);
-  tgPollLoop();
+  showcase.start();
 });
 
 // Long agent turns (fork/PR can take ~10s+). Make sure the server never

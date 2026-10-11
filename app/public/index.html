@@ -1,103 +1,69 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>BaC Demo</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { height: 100%; background: #0b0e18; overflow: hidden;
-    font-family: -apple-system, "Segoe UI", "Apple SD Gothic Neo", sans-serif; color: #eee; }
-  #wrap { position: relative; width: 100vw; height: 100vh; }
-  canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; cursor: pointer; }
-
-  /* Top bar */
-  #topbar { position: absolute; top: 0; left: 0; right: 0; height: 74px;
-    display: flex; align-items: center; gap: 14px; padding: 0 18px;
-    background: linear-gradient(180deg, rgba(10,14,30,.85), rgba(10,14,30,0));
-    pointer-events: none; z-index: 5; }
-  #topbar img.nv { height: 45px; }
-  #topbar h1 { font-size: 17px; font-weight: 700; letter-spacing: .3px; }
-  #topbar h1 span { color: #f5a623; }
-  #topbar .sub { font-size: 12px; color: #9aa3b2; margin-left: 2px; }
-
-  /* Hint */
-  #hint { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
-    font-size: 13px; color: #aeb6c4; background: rgba(10,14,30,.6);
-    padding: 6px 14px; border-radius: 20px; z-index: 5; pointer-events: none;
-    transition: opacity .4s; }
-
-  /* Chat panel */
-  #chat { position: absolute; top: 0; right: -440px; width: 440px; height: 100%;
-    background: rgba(14,18,34,.97); border-left: 1px solid #2a3350;
-    display: flex; flex-direction: column; transition: right .35s cubic-bezier(.2,.8,.2,1);
-    z-index: 10; box-shadow: -8px 0 30px rgba(0,0,0,.4); }
-  #chat.open { right: 0; }
-  #chat-head { padding: 16px; display: flex; align-items: center; gap: 12px;
-    border-bottom: 1px solid #2a3350; }
-  #chat-dot { width: 38px; height: 38px; border-radius: 10px; flex: none;
-    box-shadow: inset -3px -3px 0 rgba(0,0,0,.25); }
-  #chat-name { font-size: 21px; font-weight: 700; }
-  #chat-role { font-size: 15px; color: #9aa3b2; margin-top: 2px; }
-  #chat-close { margin-left: auto; background: none; border: none; color: #9aa3b2;
-    font-size: 22px; cursor: pointer; line-height: 1; }
-  #chat-close:hover { color: #fff; }
-
-  #msgs { flex: 1; overflow-y: auto; padding: 16px; display: flex;
-    flex-direction: column; gap: 10px; }
-  .msg { max-width: 85%; padding: 11px 15px; border-radius: 14px; font-size: 18px;
-    line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
-  .msg.bot { background: #242c46; align-self: flex-start; border-bottom-left-radius: 4px; }
-  .msg.me { background: #3a5bd0; align-self: flex-end; border-bottom-right-radius: 4px; }
-  .msg.bot.headline { background: #2e3a5c; font-weight: 700; color: #cfe0ff;
-    border-left: 3px solid #5a82e0; }
-  .msg.typing { color: #9aa3b2; font-style: italic; }
-  .ma-chips { display: flex; flex-direction: column; gap: 7px; align-self: flex-start;
-    max-width: 90%; margin-top: 2px; }
-  .ma-chip { text-align: left; background: #242c46; color: #e8ecf5;
-    border: 1px solid #3a466e; border-radius: 12px;
-    padding: 11px 15px; font-size: 18px; cursor: pointer; transition: .15s; }
-  .ma-chip:hover { background: #2e3a5c; border-color: #f5a623; }
-  .ma-chip:disabled { opacity: .45; cursor: default; }
-  .shot { max-width: 100%; border-radius: 12px; margin-top: 2px; display: block;
-    border: 1px solid #2a3350; cursor: zoom-in; }
-
-  #inbar { display: flex; gap: 8px; padding: 12px; border-top: 1px solid #2a3350; }
-  #input { flex: 1; background: #1a2138; border: 1px solid #2a3350; border-radius: 10px;
-    color: #eee; padding: 12px 14px; font-size: 18px; outline: none; }
-  #input:focus { border-color: #3a5bd0; }
-  #send { background: #3a5bd0; border: none; color: #fff; border-radius: 10px;
-    padding: 0 18px; font-size: 18px; cursor: pointer; font-weight: 600; }
-  #send:disabled { opacity: .5; cursor: default; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1018">
+  <title>Build-a-Claw | Agent Playground</title>
+  <link rel="stylesheet" href="showcase.css">
 </head>
 <body>
 <div id="wrap">
-  <canvas id="game"></canvas>
-
-  <div id="topbar">
-    <img class="nv" src="nvidia-logo.svg" alt="NVIDIA" />
-  </div>
-
-  <div id="hint">🖱️ Click an agent to begin</div>
-
-  <div id="chat">
-    <div id="chat-head">
-      <div id="chat-dot"></div>
-      <div>
-        <div id="chat-name">—</div>
-        <div id="chat-role">—</div>
-      </div>
-      <button id="chat-close">×</button>
-    </div>
-    <div id="msgs"></div>
-    <div id="inbar">
-      <input id="input" placeholder="Type a message…" autocomplete="off" />
-      <button id="send">Send</button>
-    </div>
-  </div>
+  <canvas id="game" aria-label="움직이는 에이전트 무대. 아래 에이전트 버튼으로도 선택할 수 있습니다."></canvas>
+  <header id="topbar">
+    <a class="brand" href="/" aria-label="Build-a-Claw 홈"><span class="brand-mark">✳</span><strong>build<span>-a-</span>claw</strong><span class="brand-tag">PLAYGROUND</span></a>
+    <div class="header-actions"><span id="runtime-status" class="status-pill"><i></i> 연결 확인 중</span><button id="motion-toggle" class="icon-button" aria-label="애니메이션 일시 정지" aria-pressed="false">Ⅱ</button><button id="settings-open" class="quiet-button">⚙ 연결 설정</button><img class="nv" src="nvidia-logo.svg" alt="NVIDIA"></div>
+  </header>
+  <section class="intro" aria-label="데모 소개">
+    <div class="eyebrow"><span></span> LOCAL AGENTS. REAL TOOLS.</div>
+    <h1>작은 에이전트.<br><em>큰 가능성.</em></h1>
+    <p>탐색하고, 협업하고, 세상과 연결하세요.<br>도구를 사용하는 AI의 다음 행동을 지켜보세요.</p>
+  </section>
+  <aside class="missions" aria-label="추천 데모">
+    <div class="section-label">시작해볼까요? <span>DEMO MISSIONS</span></div>
+    <button class="mission" data-mission="browser"><span class="mission-icon green">↗</span><span><strong>브라우저 탐색</strong><small>실제 웹 화면을 따라가는 검색</small></span><b>01</b></button>
+    <button class="mission" data-mission="team"><span class="mission-icon amber">⌘</span><span><strong>에이전트 협업</strong><small>PM의 계획에서 Dev의 PR까지</small></span><b>02</b></button>
+    <button class="mission" data-mission="research"><span class="mission-icon violet">▤</span><span><strong>리서치 & 공유</strong><small>논문을 찾아 Telegram · 메일로</small></span><b>03</b></button>
+    <button class="mission" data-mission="mail"><span class="mission-icon rose">✉</span><span><strong>에이전트의 받은편지함</strong><small>AgentMail로 이메일 연결</small></span><b>04</b></button>
+    <div class="transport-note"><span class="tiny-dot"></span> GitHub MCP · Browser CDP · Messaging API</div>
+  </aside>
+  <section class="stage-label" aria-label="에이전트 무대 상태"><div><span class="eyebrow">THE CLAW CREW</span><h2>함께 움직이는 아이디어</h2></div><span id="agent-count" class="stage-count">AGENTS</span></section>
+  <div class="stage-caption"><span class="tiny-dot"></span><span>캐릭터를 선택해 대화를 시작하세요</span><span class="stage-caption-end">POWERED BY YOUR LOCAL GATEWAY</span></div>
+  <nav id="agent-roster" aria-label="에이전트 선택"></nav>
+  <footer class="activity-dock"><div class="activity-title"><span class="tiny-dot"></span><strong>실행 기록</strong><small>실제 요청과 응답</small></div><ol id="activity-list" aria-live="polite"><li class="empty-activity">첫 번째 미션을 선택하면 실행 과정이 이곳에 표시됩니다.</li></ol><button id="activity-clear" class="icon-button" aria-label="실행 기록 지우기">↺</button></footer>
+  <div id="hint" class="sr-only">에이전트를 선택하세요</div>
+  <section id="chat" aria-label="에이전트 대화" aria-hidden="true">
+    <div id="chat-head"><div id="chat-dot"></div><div><div id="chat-name">Agent</div><div id="chat-role"></div></div><button id="chat-close" class="icon-button" aria-label="대화 닫기">×</button></div>
+    <div id="agent-actions"></div>
+    <div id="msgs" role="log" aria-live="polite"></div>
+    <div class="share-strip"><span>결과 공유</span><button id="share-telegram">↗ Telegram</button><button id="share-mail">✉ 이메일</button></div>
+    <form id="inbar"><input id="input" aria-label="메시지" placeholder="에이전트에게 부탁해보세요" autocomplete="off"><button id="send" type="submit" aria-label="메시지 보내기">↑</button></form>
+  </section>
 </div>
-
+<dialog id="settings-dialog" class="dialog settings-dialog" aria-labelledby="settings-title">
+  <div class="dialog-head"><div><span class="eyebrow">MAKE A CONNECTION</span><h2 id="settings-title">에이전트를 세상과 연결하기</h2></div><button class="icon-button" data-close="settings-dialog" aria-label="설정 닫기">×</button></div>
+  <div class="tab-bar" role="tablist" aria-label="연결 종류"><button role="tab" id="tab-telegram" aria-controls="panel-telegram" aria-selected="true" data-tab="telegram">Telegram</button><button role="tab" id="tab-agentmail" aria-controls="panel-agentmail" aria-selected="false" tabindex="-1" data-tab="agentmail">AgentMail</button><button role="tab" id="tab-tools" aria-controls="panel-tools" aria-selected="false" tabindex="-1" data-tab="tools">도구 상태</button></div>
+  <section id="panel-telegram" role="tabpanel" aria-labelledby="tab-telegram">
+    <p class="dialog-copy">봇을 연결하면 이 화면과 Telegram에서 메시지를 주고받을 수 있어요. OpenClaw 채널과 겹치지 않는 별도 봇을 사용해주세요.</p>
+    <form id="telegram-form"><label for="tg-token">Bot token <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer">BotFather에서 만들기 ↗</a></label><input id="tg-token" type="password" autocomplete="off" spellcheck="false" placeholder="123456789:..." required><label for="tg-chat">Chat ID <a href="https://t.me/userinfobot" target="_blank" rel="noopener noreferrer">내 Chat ID 확인 ↗</a></label><input id="tg-chat" autocomplete="off" spellcheck="false" placeholder="개인 또는 그룹의 숫자 ID" required><p class="field-note">연결 전 내 봇에게 /start를 보내주세요. 연결 확인만으로 메시지를 보내지는 않습니다.</p><div class="dialog-actions"><button type="button" class="quiet-button" id="tg-disconnect">연결 해제</button><button type="submit" class="primary-button">Telegram 연결</button></div></form><p id="tg-status" class="form-status" role="status"></p>
+  </section>
+  <section id="panel-agentmail" role="tabpanel" aria-labelledby="tab-agentmail" hidden>
+    <p class="dialog-copy">에이전트의 이메일 주소로 결과를 공유하고, 받은 메일을 확인하세요. <a href="https://console.agentmail.to" target="_blank" rel="noopener noreferrer">AgentMail Console ↗</a>에서 API key와 받은편지함을 만들 수 있어요.</p>
+    <form id="mail-connect-form"><label for="mail-key">API key</label><input id="mail-key" type="password" autocomplete="off" spellcheck="false" placeholder="AgentMail API key" required><label for="mail-inbox">Inbox ID</label><input id="mail-inbox" autocomplete="off" spellcheck="false" placeholder="my-agent@agentmail.to" required><p class="field-note">기존 받은편지함에 연결합니다. 이 연결은 AgentMail API를 직접 사용합니다.</p><div class="dialog-actions"><button type="button" class="quiet-button" id="mail-disconnect">연결 해제</button><button type="submit" class="primary-button">AgentMail 연결</button></div></form><p id="mail-status" class="form-status" role="status"></p>
+  </section>
+  <section id="panel-tools" role="tabpanel" aria-labelledby="tab-tools" hidden><p class="dialog-copy">실제 연결 상태를 확인합니다. GitHub MCP 도구는 OpenClaw의 git 에이전트에 별도로 설정해야 합니다.</p><div id="tool-status-list"></div><a href="https://github.com/bacdemokr/bac-demo/blob/main/INSTALL.md" target="_blank" rel="noopener noreferrer" class="docs-link">설치 및 도구 설정 안내 ↗</a></section>
+  <p class="privacy-note">입력한 키는 서버 메모리에만 보관됩니다. 브라우저 저장소에는 남기지 않으며 서버 재시작 시 다시 연결합니다.</p>
+</dialog>
+<dialog id="browser-dialog" class="dialog browser-dialog" aria-labelledby="browser-title">
+  <div class="dialog-head"><div><span class="eyebrow">BROWSER IN ACTION</span><h2 id="browser-title">에이전트의 눈으로 웹 보기</h2></div><button class="icon-button" data-close="browser-dialog" aria-label="탐색 창 닫기">×</button></div>
+  <form id="browser-form"><label class="sr-only" for="browser-source">검색 소스</label><select id="browser-source"><option value="naver">Naver</option><option value="google">Google</option><option value="daum">Daum</option></select><label class="sr-only" for="browser-query">검색어</label><input id="browser-query" placeholder="무엇을 찾아볼까요?" value="NVIDIA DGX Spark" maxlength="240" required><button class="primary-button" id="browser-run">탐색 시작 ↗</button></form>
+  <div class="browser-layout"><div class="browser-window"><div class="browser-chrome"><div class="traffic-lights"><i></i><i></i><i></i></div><span id="browser-address">about:blank</span><span id="browser-live">CDP</span></div><div class="browser-viewport"><div id="browser-empty"><span>↗</span><strong>검색부터 스크롤까지, 실제 화면 그대로.</strong><p>연결된 Chromium에서 페이지를 열고 화면을 캡처합니다.<br>탐색 시작을 눌러보세요.</p></div><img id="browser-frame" alt="실제 Chromium 탐색 화면" hidden></div></div><aside class="browser-trace"><span class="eyebrow">EXECUTION TRACE</span><ol id="browser-steps"></ol><p id="browser-note" role="status">탐색 준비</p></aside></div>
+  <div id="browser-results" class="browser-results"></div><div class="dialog-actions"><button id="browser-to-chat" class="quiet-button" disabled>에이전트에게 요약 요청</button><button id="browser-share" class="quiet-button" disabled>결과 공유 ↗</button></div>
+</dialog>
+<dialog id="inbox-dialog" class="dialog" aria-labelledby="inbox-title"><div class="dialog-head"><div><span class="eyebrow">AGENTMAIL</span><h2 id="inbox-title">에이전트의 받은편지함</h2></div><button class="icon-button" data-close="inbox-dialog" aria-label="받은편지함 닫기">×</button></div><div class="dialog-actions"><button id="inbox-refresh" class="quiet-button">새로고침 ↺</button><button id="mail-new" class="primary-button">메일 쓰기 ✉</button></div><p id="inbox-status" role="status"></p><div id="inbox-messages"></div></dialog>
+<dialog id="share-dialog" class="dialog" aria-labelledby="share-title"><div class="dialog-head"><div><span class="eyebrow">FROM YOUR AGENT, TO YOU</span><h2 id="share-title">결과 공유하기</h2></div><button class="icon-button" data-close="share-dialog" aria-label="공유 창 닫기">×</button></div><form id="share-form"><label for="share-channel">보낼 곳</label><select id="share-channel"><option value="telegram">Telegram</option><option value="agentmail">이메일 · AgentMail</option></select><div id="share-email-fields" hidden><label for="share-to">받는 사람</label><input id="share-to" type="email" autocomplete="email" placeholder="you@example.com"><label for="share-subject">제목</label><input id="share-subject" value="Build-a-Claw 리서치 결과" maxlength="200"></div><label for="share-text">보낼 내용</label><textarea id="share-text" rows="8" maxlength="20000" required></textarea><p id="share-destination" class="field-note"></p><p id="share-status" class="form-status" role="status"></p><div class="dialog-actions"><button class="primary-button" type="submit" id="share-send">보내기 ↗</button></div></form></dialog>
+<div id="toast" role="status" hidden></div>
 <script src="game.js"></script>
+<script src="showcase.js"></script>
 </body>
 </html>

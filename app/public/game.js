@@ -1,4 +1,4 @@
-/* BaC Multi-Agent Demo — game engine */
+/* BaC Multi-Agent Demo - game engine */
 (() => {
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d");
@@ -6,7 +6,7 @@
 
   function resize() {
     DPR = Math.min(window.devicePixelRatio || 1, 2);
-    W = window.innerWidth; H = window.innerHeight;
+    W = canvas.clientWidth; H = canvas.clientHeight;
     canvas.width = W * DPR; canvas.height = H * DPR;
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   }
@@ -26,136 +26,82 @@
 
   function rand(a, b) { return a + Math.random() * (b - a); }
 
+  let motionPaused = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const emit = (type, detail) => window.dispatchEvent(new CustomEvent("bac:" + type, { detail }));
+  function arena() {
+    const mobile = W <= 900;
+    const left = mobile ? 24 : (W >= 1500 ? 380 : 330);
+    const right = W - (mobile ? 24 : 40);
+    const top = mobile ? 605 : 245;
+    const bottom = H - (mobile ? 310 : 240);
+    return { x: (left + right) / 2, y: (top + bottom) / 2, rx: (right - left) * .34, ry: Math.max(95, (bottom - top) * .36), left, right, top, bottom };
+  }
+  function home(i) {
+    const a = arena(), angle = (i / Math.max(AGENTS.length, 1)) * Math.PI * 2 - Math.PI / 2;
+    return { x: a.x + Math.cos(angle) * a.rx, y: a.y + Math.sin(angle) * a.ry };
+  }
   function buildChars() {
-    chars = AGENTS.map((a, i) => {
-      const x = rand(W * 0.15, W * 0.85);
-      const y = rand(H * 0.42, H * 0.88);
-      return {
-        ...a,
-        x, y,
-        tx: x, ty: y,            // wander target
-        dir: 1,                  // facing (1 right, -1 left)
-        bob: Math.random() * Math.PI * 2,
-        speed: rand(22, 34),
-        wait: rand(0, 2),
-        bubble: null,            // {text, until}
-        hover: false,
-      };
-    });
+    chars = AGENTS.map((a, i) => ({ ...a, ...home(i), ...{ tx: home(i).x, ty: home(i).y },
+      home: i, dir: 1, bob: i * 1.7, speed: 12, wait: rand(1, 4), bubble: null, hover: false, busy: false }));
   }
-
   function pickTarget(c) {
-    c.tx = rand(W * 0.1, W * 0.9);
-    c.ty = rand(H * 0.4, H * 0.9);
-    c.wait = rand(1.5, 4.5);
+    const h = home(c.home);
+    c.tx = h.x + rand(-13, 13); c.ty = h.y + rand(-7, 7); c.wait = rand(2, 5);
   }
-
-  // ---------- Background: pixel BaC lobby ----------
-  // Inspired by the wooden-lattice ceiling + concrete staircase photo.
   let bgCanvas = null;
   function buildBackground() {
-    bgCanvas = document.createElement("canvas");
-    bgCanvas.width = W; bgCanvas.height = H;
-    const b = bgCanvas.getContext("2d");
-
-    // floor gradient (polished concrete)
-    const g = b.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, "#10131f");
-    g.addColorStop(0.45, "#1b2030");
-    g.addColorStop(1, "#2b3142");
-    b.fillStyle = g; b.fillRect(0, 0, W, H);
-
-    // ----- wooden lattice ceiling (top third) -----
-    const ceilH = H * 0.34;
-    b.save();
-    b.beginPath(); b.rect(0, 0, W, ceilH); b.clip();
-    // dark ceiling base
-    b.fillStyle = "#0c0e16"; b.fillRect(0, 0, W, ceilH);
-    // criss-cross wooden beams (warm tones)
-    const woods = ["#7a4a23", "#8a5526", "#9c632f", "#6b3f1e"];
-    const step = 46;
-    for (let i = -ceilH; i < W + ceilH; i += step) {
-      b.strokeStyle = woods[(i / step | 0) % woods.length];
-      b.lineWidth = 7;
-      b.beginPath(); b.moveTo(i, 0); b.lineTo(i + ceilH * 1.6, ceilH); b.stroke();
-      b.beginPath(); b.moveTo(i, 0); b.lineTo(i - ceilH * 1.6, ceilH); b.stroke();
+    bgCanvas = document.createElement("canvas"); bgCanvas.width = W; bgCanvas.height = H;
+    const b = bgCanvas.getContext("2d"), a = arena();
+    b.fillStyle = "#0b1018"; b.fillRect(0, 0, W, H);
+    const glow = b.createRadialGradient(a.x, a.y, 10, a.x, a.y, Math.max(300, a.rx * 1.8));
+    glow.addColorStop(0, "#15352c"); glow.addColorStop(.6, "#0e201f"); glow.addColorStop(1, "#0b1018");
+    b.fillStyle = glow; b.fillRect(0, 0, W, H);
+    // Perspective floor grid, clipped to the playground.
+    b.save(); b.beginPath(); b.rect(a.left, a.top - 35, a.right-a.left, a.bottom-a.top+100); b.clip();
+    b.strokeStyle = "#4c76691c"; b.lineWidth = 1;
+    const horizon = a.top - 100;
+    for (let x = a.left - 700; x <= a.right + 700; x += 72) {
+      b.beginPath(); b.moveTo(a.x + (x-a.x)*.2, horizon); b.lineTo(x, H-160); b.stroke();
     }
-    // warm glow lights between beams
-    for (let i = 0; i < W; i += step * 1.5) {
-      const gx = i + step * 0.5;
-      const rg = b.createRadialGradient(gx, ceilH * 0.5, 2, gx, ceilH * 0.5, 26);
-      rg.addColorStop(0, "rgba(255,210,120,.55)");
-      rg.addColorStop(1, "rgba(255,210,120,0)");
-      b.fillStyle = rg; b.beginPath();
-      b.arc(gx, ceilH * 0.5, 26, 0, Math.PI * 2); b.fill();
+    for (let y = a.top; y < H-170; y += 38) { b.beginPath(); b.moveTo(a.left, y); b.lineTo(a.right, y); b.stroke(); }
+    for (const scale of [1, 1.27, 1.55]) {
+      b.beginPath(); b.ellipse(a.x, a.y + 17, a.rx*scale, a.ry*scale, 0, 0, Math.PI*2);
+      b.strokeStyle = scale === 1 ? "#63947832" : "#507a6120"; b.stroke();
     }
     b.restore();
-
-    // ceiling bottom edge shadow
-    const eg = b.createLinearGradient(0, ceilH - 30, 0, ceilH + 30);
-    eg.addColorStop(0, "rgba(0,0,0,0)");
-    eg.addColorStop(1, "rgba(0,0,0,.5)");
-    b.fillStyle = eg; b.fillRect(0, ceilH - 30, W, 60);
-
-    // ----- back wall + pillars -----
-    const wallY = ceilH, wallH = H * 0.2;
-    b.fillStyle = "#171b28"; b.fillRect(0, wallY, W, wallH);
-    // wooden pillars
-    b.fillStyle = "#6b3f1e";
-    const pcount = Math.max(4, Math.floor(W / 220));
-    for (let p = 0; p <= pcount; p++) {
-      const px = (W / pcount) * p - 14;
-      b.fillRect(px, wallY - 8, 22, wallH + 16);
-      b.fillStyle = "rgba(255,255,255,.05)";
-      b.fillRect(px, wallY - 8, 6, wallH + 16);
-      b.fillStyle = "#6b3f1e";
+    // Core pedestal.
+    const hub = b.createRadialGradient(a.x, a.y, 1, a.x, a.y, 92);
+    hub.addColorStop(0, "#a6ef8040"); hub.addColorStop(1, "#83e67c00"); b.fillStyle=hub;
+    b.beginPath(); b.ellipse(a.x,a.y,100,60,0,0,Math.PI*2); b.fill();
+    b.beginPath(); b.ellipse(a.x,a.y+8,55,27,0,0,Math.PI*2); b.fillStyle="#162b24"; b.fill();
+    b.strokeStyle="#648e5345"; b.stroke();
+    b.font='24px -apple-system,sans-serif'; b.fillStyle="#b8f279"; b.textAlign="center"; b.fillText("✳",a.x,a.y+4);
+    b.font='8px ui-monospace,monospace'; b.fillStyle="#81ad8a"; b.fillText("LOCAL INTELLIGENCE",a.x,a.y+47);
+    b.font='7px ui-monospace,monospace'; b.fillStyle="#466d52"; b.fillText("OBSERVE · PLAN · ACT",a.x,a.y+61);
+  }
+  function drawNetwork(t) {
+    const a = arena();
+    ctx.save();
+    for (const c of chars) {
+      const pulse = c.busy || c === activeChar;
+      ctx.beginPath(); ctx.moveTo(a.x,a.y+8); ctx.lineTo(c.x,c.y+20);
+      ctx.strokeStyle = pulse ? c.color + "60" : "#789c7720";
+      ctx.lineWidth = pulse ? 1.2 : .7; ctx.setLineDash(pulse ? [] : [3,7]); ctx.stroke();
+      ctx.setLineDash([]);
+      if (pulse) {
+        for (let k=0;k<2;k++) {
+          const f=(t*.3+k*.5)%1, x=a.x+(c.x-a.x)*f, y=a.y+8+(c.y+12-a.y)*f;
+          ctx.fillStyle=c.color; ctx.shadowColor=c.color; ctx.shadowBlur=10;
+          ctx.beginPath();ctx.arc(x,y,2,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+        }
+      }
     }
-
-    // ----- central staircase -----
-    const stairTop = wallY + wallH;
-    const stairW = Math.min(W * 0.4, 460);
-    const cx = W / 2;
-    const steps = 9;
-    for (let s = 0; s < steps; s++) {
-      const t = s / steps;
-      const sw = stairW * (1 + t * 0.55);
-      const sy = stairTop + (H - stairTop) * (s / steps) * 0.9;
-      const sh = (H - stairTop) / steps * 0.9;
-      b.fillStyle = s % 2 ? "#23293a" : "#2a3144";
-      b.fillRect(cx - sw / 2, sy, sw, sh + 1);
-      b.fillStyle = "rgba(0,0,0,.25)";
-      b.fillRect(cx - sw / 2, sy + sh - 3, sw, 3);
-    }
-
-    // ----- "Build-a-Claw" sign, tucked into the lower-left corner -----
-    b.save();
-    b.textAlign = "left";
-    b.textBaseline = "alphabetic";
-    const fsize = Math.max(22, Math.min(48, W * 0.038));
-    const bx = 28, by = H - 28;
-    b.font = `800 ${fsize}px "Trebuchet MS", Verdana, sans-serif`;
-    // soft glow halo behind the text
-    b.shadowColor = "rgba(120,180,255,.5)";
-    b.shadowBlur = 18;
-    b.fillStyle = "rgba(150,195,255,.18)";
-    b.fillText("Build-a-Claw", bx, by);
-    // crisp light stroke on top, subtle so it reads as part of the scene
-    b.shadowBlur = 0;
-    b.lineWidth = 1.5;
-    b.strokeStyle = "rgba(190,215,255,.24)";
-    b.strokeText("Build-a-Claw", bx, by);
-    b.restore();
-
-    // soft vignette
-    const vg = b.createRadialGradient(cx, H * 0.55, H * 0.3, cx, H * 0.55, H * 0.85);
-    vg.addColorStop(0, "rgba(0,0,0,0)");
-    vg.addColorStop(1, "rgba(0,0,0,.55)");
-    b.fillStyle = vg; b.fillRect(0, 0, W, H);
+    ctx.restore();
   }
 
   // ---------- Draw a Claw mascot character (color-tinted) ----------
   function drawChar(c, t) {
-    const bob = Math.sin(t * 3 + c.bob) * 2;
+    const bob = Math.sin(t * 2 + c.bob) * (c.busy ? 4 : 2.5);
     const x = c.x, y = c.y + bob;
 
     ctx.save();
@@ -167,9 +113,14 @@
     ctx.ellipse(c.x, shY, shRx, shRy, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // hover ring
-    if (c.hover) {
-      ctx.strokeStyle = "rgba(255,255,255,.85)";
+    ctx.save();
+    ctx.shadowColor = c.color; ctx.shadowBlur = c.busy || c.active ? 24 : 10;
+    ctx.strokeStyle = c.color + (c.busy ? "aa" : "40"); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.ellipse(c.x, c.y + (c.baby ? 17 : 34), c.baby ? 18 : 40, c.baby ? 6 : 12, 0, 0, Math.PI*2); ctx.stroke();
+    ctx.restore();
+    // selected and hovered agents get a soft halo
+    if (c.hover || c === activeChar) {
+      ctx.strokeStyle = c.color + "aa";
       ctx.lineWidth = 2.5;
       ctx.beginPath();
       ctx.ellipse(c.x, y - 7, 41, 48, 0, 0, Math.PI * 2);
@@ -178,6 +129,7 @@
 
     ctx.translate(x, y);
     ctx.scale(c.dir, 1);
+    ctx.rotate(Math.sin(t * (c.busy || c.active ? 6 : 2) + c.bob) * .025);
     if (c.baby) ctx.scale(0.5, 0.5);   // PM/Dev subagents are half-size "babies"
     else ctx.scale(1.2, 1.2);          // normal agents 1.2x larger
 
@@ -231,18 +183,16 @@
     // ---- eyes (embedded: black disc + small black pupil, no mint) ----
     for (const ex of [-7.5, 7.5]) {
       ctx.fillStyle = "#111";
-      ctx.beginPath(); ctx.arc(ex, -4, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(ex, -4, 5, Math.sin(t * .65 + c.bob) > .994 ? 1 : 5, 0, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = "rgba(255,255,255,.7)";
       ctx.beginPath(); ctx.arc(ex + 1.6, -5.6, 1, 0, Math.PI * 2); ctx.fill();
     }
 
     ctx.restore();
 
-    ctx.restore();
-
     // name tag
     const tagY = c.baby ? c.y + 18 : c.y + 46;
-    ctx.font = "600 14px -apple-system, sans-serif";
+    ctx.font = "500 11px -apple-system, sans-serif";
     ctx.fillStyle = "rgba(0,0,0,.5)";
     const tw2 = ctx.measureText(c.name).width + 14;
     roundRect(ctx, c.x - tw2 / 2, tagY, tw2, 19, 9); ctx.fill();
@@ -259,13 +209,13 @@
   }
 
   function drawBubble(c, text) {
-    ctx.font = "16px -apple-system, sans-serif";
-    const maxW = 240;
+    ctx.font = "11px -apple-system, sans-serif";
+    const maxW = W <= 900 ? 140 : 240;
     const lines = wrapText(text, maxW);
-    const lh = 20, padX = 14, padY = 11;
+    const lh = 16, padX = 12, padY = 9;
     const bw = Math.min(maxW, Math.max(...lines.map(l => ctx.measureText(l).width))) + padX * 2;
     const bh = lines.length * lh + padY * 2;
-    const bx = c.x - bw / 2;
+    const bx = Math.max(12, Math.min(W - bw - 12, c.x - bw / 2));
     const by = c.y - 52 - bh;
 
     ctx.fillStyle = "rgba(255,255,255,.97)";
@@ -317,12 +267,13 @@
   // ---------- Main loop ----------
   let last = performance.now();
   function loop(now) {
-    const dt = Math.min(0.05, (now - last) / 1000);
+    const dt = motionPaused ? 0 : Math.min(0.05, (now - last) / 1000);
     last = now;
-    const t = now / 1000;
+    const t = motionPaused ? 0 : now / 1000;
 
     if (bgCanvas) ctx.drawImage(bgCanvas, 0, 0, W, H);
 
+    drawNetwork(t);
     for (const c of chars) {
       // wander
       if (activeChar !== c) {
@@ -347,6 +298,7 @@
       k.x += (k.tx - k.x) * Math.min(1, dt * 6);
       k.y += (k.ty - k.y) * Math.min(1, dt * 6);
       drawChar(k, t);
+      drawTaskLabel(k);
     }
     if (maBox) {
       // While "held", keep the box glued to that subagent (follows its bob/position).
@@ -400,14 +352,16 @@
   }
 
   canvas.addEventListener("mousemove", (e) => {
-    const c = hitTest(e.clientX, e.clientY);
+    const rect = canvas.getBoundingClientRect();
+    const c = hitTest(e.clientX - rect.left, e.clientY - rect.top);
     chars.forEach(ch => ch.hover = false);
     if (c) { c.hover = true; canvas.style.cursor = "pointer"; }
     else canvas.style.cursor = "default";
   });
 
   canvas.addEventListener("click", (e) => {
-    const c = hitTest(e.clientX, e.clientY);
+    const rect = canvas.getBoundingClientRect();
+    const c = hitTest(e.clientX - rect.left, e.clientY - rect.top);
     // Ignore clicks on the bot that's already open (prevents wiping an
     // in-flight conversation / clearing the panel mid-request).
     if (c && c !== activeChar) openChat(c);
@@ -421,10 +375,14 @@
   const hintEl = document.getElementById("hint");
 
   function openChat(c) {
+    stopTgRecv();
     activeChar = c;
+    sendBtn.disabled = !!c.busy;
+    chatEl.setAttribute("aria-hidden", "false");
     document.getElementById("chat-dot").style.background = c.color;
     document.getElementById("chat-name").textContent = c.name;
     document.getElementById("chat-role").textContent = c.role;
+    emit("agent", c);
     msgsEl.innerHTML = "";
     chatEl.classList.add("open");
     hintEl.style.opacity = "0";
@@ -438,17 +396,17 @@
     addMsg("bot", c.intro);
     inputEl.focus();
 
-    // Spark Monitor: don't just greet — auto-pull a live status summary.
+    // Spark Monitor: don't just greet - auto-pull a live status summary.
     if (c.live === "sysinfo" || c.id === "sysmon") {
-      runTurn(c, "Give me a concise current system status summary.", { auto: true });
+      runTurn(c, "현재 시스템 상태를 한국어로 간단히 알려주세요.", { auto: true });
     }
     // ArxivBot: the cron job already scanned arXiv and cached a pre-formatted
     // announcement. On click we just read it back instantly (no LLM round-trip),
-    // so the Top 3 appear immediately — with a brief "pulling it up" beat.
+    // so the Top 3 appear immediately - with a brief "pulling it up" beat.
     if (c.live === "arxiv") {
       showArxivTop3(c);
       // Start the per-minute cron only once the user has engaged with ArxivBot
-      // (saves resources — no background polling until you click it).
+      // (saves resources - no background polling until you click it).
       startArxivCron();
     }
     // TelegramBot: start listening for inbound Telegram messages.
@@ -470,7 +428,7 @@
     const hint = document.createElement("div");
     hint.className = "msg bot";
     hint.style.opacity = ".8";
-    hint.textContent = "Pick a feature for my team to build — or type your own:";
+    hint.textContent = "Pick a feature for my team to build - or type your own:";
     msgsEl.appendChild(hint);
     for (const s of MA_SUGGESTIONS) {
       const b = document.createElement("button");
@@ -490,6 +448,8 @@
 
   function closeChat() {
     chatEl.classList.remove("open");
+    chatEl.setAttribute("aria-hidden", "true");
+    emit("agent", null);
     stopTgRecv();
     maCleanup();
     activeChar = null;
@@ -498,14 +458,14 @@
   document.getElementById("chat-close").addEventListener("click", closeChat);
 
   function escapeHtml(s) {
-    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
   // Minimal, safe inline markdown -> HTML for bot messages: escapes first,
   // then renders **bold**/*italic*/_italic_, autolinks URLs, and line breaks.
   function renderInline(text) {
     let h = escapeHtml(text);
     h = h.replace(/(https?:\/\/[^\s<>"']+)/g,
-      '<a href="$1" target="_blank" style="color:#5b8def;text-decoration:underline">$1</a>');
+      '<a href="$1" target="_blank" rel="noopener noreferrer" style="color:#5b8def;text-decoration:underline">$1</a>');
     h = h.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
     h = h.replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,!?]|$)/g, "$1<b>$2</b>");
     h = h.replace(/(^|[\s(])_([^_\n]+)_(?=[\s).,!?]|$)/g, "$1<i>$2</i>");
@@ -539,6 +499,9 @@
   }
 
   async function runTurn(c, text, opts) {
+    if (c.busy) return;
+    c.busy = true;
+    emit("activity", { agent: c.name, text: "Gateway에 요청 전달" });
     const isAuto = opts && opts.auto;
     // Auto turns (e.g. the click-triggered status/map request) are hidden from
     // the chat panel so it doesn't look like the user typed them.
@@ -563,7 +526,7 @@
         role: m.role,
         content: typeof m.content === "string" ? m.content : String(m.content ?? ""),
       }));
-      const bodyStr = JSON.stringify({ agent: mineId, messages: cleanMsgs });
+      const bodyStr = JSON.stringify({ agent: mineId, messages: cleanMsgs, searchJobId: opts?.searchJobId });
       // Disguise as a static asset GET: base64 payload in the path.
       const b64 = btoa(unescape(encodeURIComponent(bodyStr)))
         .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -590,12 +553,16 @@
     if (j === null) {
       console.warn("chat failed:", lastErr && lastErr.message);
       if (isActive() && typing) typing.remove();
-      sendBtn.disabled = false;
+      c.busy = false;
+      if (isActive()) { sendBtn.disabled = false; addMsg("bot", "응답을 받지 못했습니다. Gateway 연결을 확인하고 다시 시도해주세요."); }
+      emit("activity", { agent: c.name, text: "요청 실패 또는 대화 이동" });
       return;
     }
     try {
       const reply = j.reply || j.error || "(no response)";
       history[mineId].push({ role: "assistant", content: reply });
+      if (!j.error) emit("result", { agent: c.name, text: reply });
+      emit("activity", { agent: c.name, text: j.error ? "요청 실패" : "응답 수신" });
       // Render if this character's panel is still open (compare by id).
       if (isActive()) {
         if (typing) typing.remove();
@@ -611,53 +578,50 @@
           mine.bubble = { text: short, until: performance.now() + 8000 };
         }
       } else {
-        console.log("[runTurn] NOT rendered — panel not active for", mineId, "activeChar=", activeChar && activeChar.id);
+        console.log("[runTurn] NOT rendered - panel not active for", mineId, "activeChar=", activeChar && activeChar.id);
       }
     } catch (err) {
       console.error("render failed:", err);
     } finally {
-      sendBtn.disabled = false;
-      if (isActive()) inputEl.focus();
+      c.busy = false;
+      if (isActive()) { sendBtn.disabled = false; inputEl.focus(); }
     }
   }
 
   async function sendMsg() {
     const text = inputEl.value.trim();
-    if (!text || !activeChar) return;
+    if (!text || !activeChar || activeChar.busy || sendBtn.disabled) return;
     const c = activeChar;
     inputEl.value = "";
     addMsg("me", text);
     if (c.live === "telegram") { tgSendMsg(c, text); return; }
     if (c.live === "multiagent") { runMultiagent(c, text); return; }
+    if (c.live === "search" && window.BacShowcase) { window.BacShowcase.browse(text); return; }
+    if (c.live === "agentmail") { window.BacShowcase?.inbox(); return; }
     runTurn(c, text);
   }
-  sendBtn.addEventListener("click", sendMsg);
-  inputEl.addEventListener("keydown", (e) => { if (e.key === "Enter") sendMsg(); });
+  document.getElementById("inbar").addEventListener("submit", e => { e.preventDefault(); sendMsg(); });
 
   // ---------- Telegram two-way bridge (client) ----------
   let tgPollTimer = null;
   let tgLastId = 0;
-  function b64urlOf(obj) {
-    return btoa(unescape(encodeURIComponent(JSON.stringify(obj))))
-      .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  }
   async function tgSendMsg(c, text) {
     sendBtn.disabled = true;
     try {
-      const r = await fetch("/bac-tg-send/" + b64urlOf({ text }) + ".json?_=" + Date.now());
+      const r = await fetch("/api/integrations/telegram/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
       const j = await r.json();
       if (activeChar === c) {
         if (j.ok) {
+          emit("activity", { agent: c.name, text: "Telegram에 메시지 전달" });
           c.bubble = { text: "Sent to Telegram 📤", until: performance.now() + 4000 };
         } else {
           addMsg("bot", j.note || ("Could not send: " + (j.error || "unknown error")));
         }
       }
     } catch (err) {
-      console.warn("[tg] send failed:", err && err.message);
+      if (activeChar === c) addMsg("bot", "Telegram으로 보내지 못했습니다. 연결 설정을 확인해주세요.");
     } finally {
-      sendBtn.disabled = false;
-      if (activeChar === c) inputEl.focus();
+      if (activeChar === c) { sendBtn.disabled = false; inputEl.focus(); }
     }
   }
   function startTgRecv(c) {
@@ -702,6 +666,8 @@
   }
 
   async function runMultiagent(c, request) {
+    if (c.busy) return;
+    c.busy = true;
     maCleanup();
     maParent = c;
     sendBtn.disabled = true;
@@ -712,12 +678,12 @@
     // PM on the left and Dev on the right, well separated so bubbles don't overlap.
     const pm = {
       id: "_ma_pm", role: "pm", name: "PM", label: "PM", baby: true,
-      color: "#5b8def", x: c.x, y: c.y, tx: c.x - 130, ty: c.y + 110,
+      color: "#5b8def", x: c.x, y: c.y, tx: arena().x - (W <= 900 ? 65 : 105), ty: arena().y - 55,
       bob: Math.random() * 6, dir: 1, active: false, hover: false, bubble: null,
     };
     const dev = {
       id: "_ma_dev", role: "dev", name: "Dev", label: "Dev", baby: true,
-      color: "#34c98a", x: c.x, y: c.y, tx: c.x + 130, ty: c.y + 110,
+      color: "#34c98a", x: c.x, y: c.y, tx: arena().x + (W <= 900 ? 65 : 105), ty: arena().y - 55,
       bob: Math.random() * 6, dir: -1, active: false, hover: false, bubble: null,
     };
     maKids = [pm, dev];
@@ -742,14 +708,14 @@
     } catch (e) { console.warn("[ma] start failed", e && e.message); }
     if (!jobId) {
       addMsg("bot", "Couldn't start the team. Try again?");
-      sendBtn.disabled = false; maCleanup(); return;
+      sendBtn.disabled = false; c.busy = false; maCleanup(); return;
     }
 
     const isActive = () => activeChar && activeChar.id === c.id;
     let done = false;
     for (let i = 0; i < 120 && !done; i++) {
       await new Promise((rs) => setTimeout(rs, 700));
-      if (!isActive()) { maCleanup(); sendBtn.disabled = false; return; }
+      if (!isActive()) { maCleanup(); c.busy = false; return; }
       let pj;
       try {
         const pr = await fetch("/bac-ma-poll/" + jobId + ".json?_=" + Date.now());
@@ -766,22 +732,24 @@
     }
 
     async function handleStage(st) {
+      if (!isActive()) return;
+      emit("activity", { agent: st.actor || "Team", text: st.text });
       switch (st.stage) {
         case "spawn":
           // Orchestrator: short, intuitive "what's happening" line
-          bubbleFor("orchestrator", "Got it — spinning up my team 👥");
+          bubbleFor("orchestrator", "Got it - spinning up my team 👥");
           // Let the parent speak alone first, then PM jumps in after a beat
           await wait(2200);
           break;
         case "pm-start":
           pm.active = true; pm.label = "PM • planning…";
-          bubbleFor("pm", "On it — figuring out the plan 🧠");
+          bubbleFor("pm", "On it - figuring out the plan 🧠");
           break;
         case "pm-done":
           pm.active = false; pm.label = "PM ✓";
           addMsg("bot headline", "🧠 PM plan");
           addMsg("bot", st.plan || st.text);
-          bubbleFor("pm", "Plan's ready — handing it to Dev ✅");
+          bubbleFor("pm", "Plan's ready - handing it to Dev ✅");
           // hold so the audience can read the plan before the handoff
           await wait(5000);
           break;
@@ -794,12 +762,12 @@
         case "dev-start":
           dev.active = true; dev.label = "Dev • building…";
           // keep this bubble up for the WHOLE build (same lifetime as the box in
-          // Dev's hands) — stays until dev-done replaces it
+          // Dev's hands) - stays until dev-done replaces it
           bubbleFor("dev", "Writing the code now ⌨️", Infinity);
           break;
         case "dev-done":
           dev.active = false; dev.label = st.prUrl ? "Dev ✓ PR #" + st.prNum : "Dev ✗";
-          maBox = null;   // box is "delivered" — remove only now that the PR is open
+          maBox = null;   // box is "delivered" - remove only now that the PR is open
           addMsg("bot", st.text);
           if (st.prUrl) {
             const a = document.createElement("a");
@@ -814,7 +782,7 @@
         case "merge":
           // kids slide back into the orchestrator, then vanish
           pm.tx = c.x; pm.ty = c.y; dev.tx = c.x; dev.ty = c.y;
-          bubbleFor("orchestrator", "All wrapped up — nice work team 🎉");
+          bubbleFor("orchestrator", "All wrapped up - nice work team 🎉");
           addMsg("bot headline", "🎉 " + st.text);
           setTimeout(() => { if (maParent === c) maCleanup(); }, 2500);
           break;
@@ -825,8 +793,9 @@
       }
     }
 
-    sendBtn.disabled = false;
-    if (isActive()) inputEl.focus();
+    c.busy = false;
+    if (isActive()) { sendBtn.disabled = false; inputEl.focus(); }
+    if (!done && isActive()) addMsg("bot", "팀 작업이 시간 안에 완료되지 않았습니다. Gateway와 GitHub 연결을 확인해주세요.");
   }
 
   // ---------- Boot ----------
@@ -840,6 +809,7 @@
       AGENTS = [];
     }
     buildChars();
+    emit("ready", chars);
     requestAnimationFrame(loop);
   }
 
@@ -848,20 +818,22 @@
   // Top 3 actually changed since last scan; otherwise shows a "checked" note,
   // so the cron is visibly alive without faking an update.
   // ArxivBot click: read the cron-cached Top 3 announcement and show it fast.
-  // No LLM call — the cron already did the work; this is just a file/cache read.
+  // No LLM call - the cron already did the work; this is just a file/cache read.
   async function showArxivTop3(c) {
     const typing = addMsg("bot", "\uD83D\uDCE1 Pulling up my latest arXiv scan\u2026");
     try {
       const r = await fetch("/bac-arxiv/top3.json?_=" + Date.now());
       const j = await r.json();
+      emit("result", { agent: c.name, text: j.text });
+      emit("activity", { agent: c.name, text: j.source === "live" ? "arXiv RSS에서 논문 수신" : "저장된 참고 논문 표시" });
       // tiny beat so it reads as "fetching", then swap in the real cards
       setTimeout(() => {
-        if (j.text) typing.innerHTML = renderInline(j.text);
-        else typing.textContent = "Hmm, my scan came back empty \u2014 try again in a moment!";
+        if (j.text) typing.innerHTML = renderInline((j.source === "live" ? "" : "참고 논문 모음 - 최신 피드가 비어 있거나 연결되지 않았습니다.\n\n") + j.text);
+        else typing.textContent = "Hmm, my scan came back empty - try again in a moment!";
         msgsEl.scrollTop = msgsEl.scrollHeight;
       }, 450);
     } catch {
-      typing.textContent = "Couldn't reach my paper feed just now \u2014 try again in a sec!";
+      typing.textContent = "Couldn't reach my paper feed just now - try again in a sec!";
     }
   }
 
@@ -874,21 +846,29 @@
     const arx = chars.find((c) => c.live === "arxiv");
     if (!arx) return;
     arxivCronStarted = true;
+    let previous = "";
     const ping = async () => {
-      try { await fetch("/bac-arxiv/top3.json?_=" + Date.now()); } catch {}
-      // Don't talk over an open chat with this bot.
-      if (activeChar && activeChar.id === arx.id) return;
-      const updated = [
-        "📚 New Agentic AI papers — updated!",
-        "🔔 Fresh Top 3 just in — click me!",
-        "✨ Updated! New picks from arXiv — take a look!",
-        "📡 Just re-scanned arXiv — new Top 3 ready!",
-      ];
-      const text = updated[Math.floor(Math.random() * updated.length)];
-      arx.bubble = { text, until: performance.now() + 7000 };
+      try {
+        const r = await fetch("/bac-arxiv/top3.json?_=" + Date.now()), j = await r.json();
+        const signature = (j.papers || []).map(p => p.link).sort().join("|");
+        const changed = previous && signature !== previous; previous = signature;
+        emit("activity", { agent: arx.name, text: j.source === "live" ? "예약 확인: arXiv 피드" : "예약 확인: 참고 논문 모음" });
+        if (activeChar?.id !== arx.id) arx.bubble = { text: changed ? "논문 모음이 변경됐어요 📚" : "논문 모음을 확인했어요 📚", until: performance.now() + 5000 };
+      } catch { emit("activity", { agent: arx.name, text: "예약 확인 실패" }); }
     };
     setInterval(ping, 60000); // re-scan once a minute from first click onward
   }
-  window.addEventListener("resize", () => { buildBackground(); });
+  window.addEventListener("resize", () => {
+    chars.forEach((c,i) => { const h=home(i); c.x=c.tx=h.x; c.y=c.ty=h.y; }); buildBackground();
+  });
+  window.BacDemo = {
+    getAgents: () => chars, getActive: () => activeChar,
+    openAgent(id) { const c=chars.find(a=>a.id===id); if(c && c!==activeChar) openChat(c); },
+    runTurn, addMsg,
+    motion(value) { motionPaused=value; },
+    isPaused: () => motionPaused,
+    busy(id,value) { const c=chars.find(a=>a.id===id); if(c)c.busy=value; },
+    bubble(id,text) { const c=chars.find(a=>a.id===id); if(c) c.bubble={text,until:performance.now()+6000}; }
+  };
   boot();
 })();

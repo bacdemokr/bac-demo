@@ -43,6 +43,58 @@ curl http://127.0.0.1:8081/api/agents
 bash scripts/ensure-cdp.sh
 ```
 
+## Browser showcase
+
+The browser viewer connects to `BROWSER_CDP_URL` (default `http://127.0.0.1:9222`). It opens a worker tab, captures the actual page while navigating and scrolling, extracts links, and then closes its worker tab. Chromium remains running. Only one search can run at a time; completed captures are kept in memory for up to 12 jobs and removed as new jobs arrive.
+
+On the supplied Spark setup, use the Chromium service above or `npm run cdp`. For a manual headless test on Linux:
+
+```bash
+chromium --headless --remote-debugging-address=127.0.0.1 \
+  --remote-debugging-port=9222 --user-data-dir=/tmp/bac-demo-browser about:blank
+```
+
+On macOS, use a dedicated profile:
+
+```bash
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 \
+  --user-data-dir=/tmp/bac-demo-browser about:blank
+```
+
+Keep CDP on loopback. A site may present CAPTCHA, consent, or access restrictions. The viewer shows the actual screenshot and does not substitute invented results. An unavailable CDP endpoint produces a clear setup message. Closing the viewer does not cancel the worker; you can reopen it to see its progress. Search-page links are extracted with generic selectors, so extraction quality can vary by site.
+
+The search agent can summarize a completed browser job without repeating the search. This requires a working `bac` gateway agent and model. `BROWSER_MODEL` overrides the model used for summarization.
+
 ## Optional Telegram
 
-Use a separate bot from any existing OpenClaw Telegram integration to avoid competing polling loops. Put its token in `app/.tg_token`, set mode 600, and restart the demo. Without this token the bridge remains disabled.
+Use a **separate bot** from any existing OpenClaw Telegram integration to avoid competing polling loops.
+
+1. Create it through [BotFather](https://t.me/BotFather).
+2. Send `/start` to your new bot.
+3. Open **연결 설정 → Telegram** in the demo and enter its Bot token and numeric Chat ID. [userinfobot](https://t.me/userinfobot) can show your personal Chat ID. Group IDs are usually negative.
+4. After verification, select TelegramAgent for two-way chat, or share a research result from the preview dialog.
+
+Connecting calls `getMe` and `getChat`; it does not send a test message. Messages from other chats are ignored. Replies always target the configured Chat ID. A reconnect drops the old message buffer and polling client. Disconnecting also invalidates any pending verification.
+
+Environment setup remains supported: put a token in `app/.tg_token` (mode 600) or `TG_BOT_TOKEN`, and set `TG_CHAT_ID` before restarting. Without a Chat ID, sends are disabled until you complete the UI connection. Incoming Telegram messages are displayed as messages; this dedicated bridge does not independently start gateway agent tasks.
+
+## Optional AgentMail
+
+Create an API key and an inbox in the [AgentMail Console](https://console.agentmail.to). Then open **연결 설정 → AgentMail** and enter the key and existing Inbox ID, typically an address such as `my-agent@agentmail.to`.
+
+The UI verifies the inbox with `GET /v0/inboxes/{inbox_id}`, reads message previews with `GET /messages?limit=12`, and sends reviewed plain-text emails with `POST /messages/send`. It does not create inboxes or automatically reply to received mail. Neither connecting nor refreshing the inbox sends email. Sending is never retried automatically after an uncertain delivery.
+
+For startup configuration, set `AGENTMAIL_API_KEY` and `AGENTMAIL_INBOX_ID` in the gitignored `.env`. UI-entered credentials are memory-only. Reopening or reloading the page keeps the server connection; restarting the server requires re-entering UI credentials.
+
+This MailAgent viewer uses the AgentMail REST API. To let an OpenClaw agent call mail tools directly, configure the [official AgentMail MCP integration](https://www.agentmail.to/docs/integrations/mcp) separately, or follow the AgentMail skill setup in the linked Build-a-Claw guide. Do not describe the viewer's direct API calls as MCP calls.
+
+## Local verification
+
+```bash
+npm test
+# Linux; set the path to your installation
+TEST_CHROMIUM_EXECUTABLE=/usr/bin/chromium npm run test:browser
+```
+
+The browser test defaults to the installed Google Chrome path on macOS. It uses local fixture services and does not send real email or Telegram messages. Real delivery, gateway tool availability, and Spark GPU metrics must be checked on the configured demo machine.
