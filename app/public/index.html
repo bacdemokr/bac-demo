@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b1018">
   <title>Agentic AI Demo</title>
-  <link rel="stylesheet" href="showcase.css?v=workflow">
+  <link rel="stylesheet" href="showcase.css?v=research">
 </head>
 <body>
 <div id="wrap">
@@ -36,7 +36,8 @@
 </div>
 <dialog id="settings-dialog" class="dialog settings-dialog" aria-labelledby="settings-title">
   <div class="dialog-head"><h2 id="settings-title">연결 설정</h2><button class="icon-button" data-close="settings-dialog" aria-label="설정 닫기">×</button></div>
-  <div class="tab-bar" role="tablist" aria-label="연결 종류"><button role="tab" id="tab-telegram" aria-controls="panel-telegram" aria-selected="true" data-tab="telegram">Telegram</button><button role="tab" id="tab-agentmail" aria-controls="panel-agentmail" aria-selected="false" tabindex="-1" data-tab="agentmail">AgentMail</button><button role="tab" id="tab-tools" aria-controls="panel-tools" aria-selected="false" tabindex="-1" data-tab="tools">도구 상태</button></div>
+  <div class="tab-bar" role="tablist" aria-label="연결 종류"><button role="tab" id="tab-telegram" aria-controls="panel-telegram" aria-selected="true" data-tab="telegram">Telegram</button><button role="tab" id="tab-agentmail" aria-controls="panel-agentmail" aria-selected="false" tabindex="-1" data-tab="agentmail">AgentMail</button><button role="tab" id="tab-gateway" aria-controls="panel-gateway" aria-selected="false" tabindex="-1" data-tab="gateway">Gateway</button><button role="tab" id="tab-tools" aria-controls="panel-tools" aria-selected="false" tabindex="-1" data-tab="tools">도구 상태</button></div>
+  <section id="panel-gateway" role="tabpanel" aria-labelledby="tab-gateway" hidden><form id="gateway-form"><label for="gw-url">Gateway 주소</label><input id="gw-url" type="url" value="http://127.0.0.1:18789" required><label for="gw-token">인증 토큰</label><input id="gw-token" type="password" autocomplete="off" required><div class="dialog-actions"><button type="button" id="gw-disconnect" class="quiet-button">연결 해제</button><button type="submit" class="primary-button">Gateway 연결</button></div></form><p id="gw-status" class="form-status" role="status"></p></section>
   <section id="panel-telegram" role="tabpanel" aria-labelledby="tab-telegram">
     <p class="dialog-copy">OpenClaw 채널과 별도 봇을 사용하세요.</p>
     <form id="telegram-form"><label for="tg-token">Bot token <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer">BotFather ↗</a></label><input id="tg-token" type="password" autocomplete="off" spellcheck="false" placeholder="123456789:..." required><label for="tg-chat">Chat ID <a href="https://t.me/userinfobot" target="_blank" rel="noopener noreferrer">Chat ID 확인 ↗</a></label><input id="tg-chat" autocomplete="off" spellcheck="false" placeholder="개인 또는 그룹의 숫자 ID" required><p class="field-note">연결 전 봇에게 /start를 보내세요.</p><div class="dialog-actions"><button type="button" class="quiet-button" id="tg-disconnect">연결 해제</button><button type="submit" class="primary-button">Telegram 연결</button></div></form><p id="tg-status" class="form-status" role="status"></p>
@@ -50,9 +51,17 @@
 </dialog>
 <dialog id="browser-dialog" class="dialog browser-dialog" aria-labelledby="browser-title">
   <div class="dialog-head"><h2 id="browser-title">브라우저 탐색</h2><button class="icon-button" data-close="browser-dialog" aria-label="탐색 창 닫기">×</button></div>
-  <form id="browser-form"><label class="sr-only" for="browser-source">검색 소스</label><select id="browser-source"><option value="naver">Naver</option><option value="google">Google</option><option value="daum">Daum</option></select><label class="sr-only" for="browser-query">검색어</label><input id="browser-query" placeholder="검색어" value="NVIDIA DGX Spark" maxlength="240" required><button class="primary-button" id="browser-run">탐색 시작 ↗</button></form>
+  <form id="browser-form">
+    <label for="browser-query">조사할 질문</label><textarea id="browser-query" placeholder="궁금한 내용과 원하는 결과를 적어주세요." rows="2" maxlength="600" required>DGX Spark의 로컬 AI 활용 사례를 조사해줘. 공식 자료와 실제 사용 사례를 구분하고 출처를 알려줘.</textarea>
+    <div class="browser-options"><label class="sr-only" for="browser-mode">조사 방식</label><select id="browser-mode"><option value="research">일반 조사</option><option value="news">뉴스 정리</option><option value="compare">비교 조사</option><option value="search">빠른 검색</option></select><label class="sr-only" for="browser-source">검색원</label><select id="browser-source"><option value="auto">여러 검색원</option><option value="naver">Naver</option><option value="google">Google</option><option value="daum">Daum</option></select><button class="primary-button" id="browser-run">조사 시작</button></div>
+  </form>
+  <div id="browser-examples" aria-label="조사 예시"><button data-research-example="news">최근 AI 뉴스</button><button data-research-example="compare">DGX Spark / Jetson 비교</button><button data-research-example="research">로컬 AI 활용 사례</button></div>
+  <div id="browser-plan" role="status" hidden></div>
   <div class="browser-layout"><div class="browser-window"><div class="browser-chrome"><div class="traffic-lights"><i></i><i></i><i></i></div><span id="browser-address">about:blank</span><span id="browser-live">CDP</span></div><div class="browser-viewport"><div id="browser-empty">탐색 대기</div><img id="browser-frame" alt="실제 Chromium 탐색 화면" hidden></div></div><aside class="browser-trace"><ol id="browser-steps"></ol><p id="browser-note" role="status">탐색 준비</p></aside></div>
-  <div id="browser-results" class="browser-results"></div><section id="browser-summary" hidden><h3>요약</h3><div id="browser-summary-text" role="status"></div></section><div class="dialog-actions"><button id="browser-summary-run" class="quiet-button" disabled>요약 요청</button><button id="browser-share" class="quiet-button" disabled>결과 공유 ↗</button></div>
+  <section id="browser-summary" hidden><h3>조사 결과</h3><div id="browser-summary-text" role="status"></div><ul id="browser-limitations"></ul></section>
+  <section id="browser-evidence" hidden><h3>원문 확인</h3><div id="browser-documents"></div></section>
+  <details id="browser-candidates" hidden><summary>검색 후보</summary><div id="browser-results" class="browser-results"></div></details>
+  <div class="dialog-actions browser-actions"><button id="browser-summary-run" class="quiet-button" disabled>AI로 정리</button><button id="browser-share" class="quiet-button" disabled>결과 공유</button></div>
 </dialog>
 <dialog id="inbox-dialog" class="dialog" aria-labelledby="inbox-title">
   <div class="dialog-head"><h2 id="inbox-title">메시지</h2><button class="icon-button" data-close="inbox-dialog" aria-label="메시지 창 닫기">×</button></div>
@@ -62,8 +71,8 @@
 </dialog>
 <dialog id="share-dialog" class="dialog" aria-labelledby="share-title"><div class="dialog-head"><h2 id="share-title">결과 공유</h2><button class="icon-button" data-close="share-dialog" aria-label="공유 창 닫기">×</button></div><form id="share-form"><label for="share-channel">보낼 곳</label><select id="share-channel"><option value="telegram">Telegram</option><option value="agentmail">이메일 · AgentMail</option></select><div id="share-email-fields" hidden><label for="share-to">받는 사람</label><input id="share-to" type="email" autocomplete="email" placeholder="you@example.com"><label for="share-subject">제목</label><input id="share-subject" value="Agentic AI Demo 결과" maxlength="200"></div><label for="share-text">보낼 내용</label><textarea id="share-text" rows="8" maxlength="20000" required></textarea><p id="share-destination" class="field-note"></p><p id="share-status" class="form-status" role="status"></p><div class="dialog-actions"><button class="primary-button" type="submit" id="share-send">보내기 ↗</button></div></form></dialog>
 <div id="toast" role="status" hidden></div>
-<script src="runtime.js?v=workflow"></script>
-<script src="game.js?v=workflow"></script>
-<script src="showcase.js?v=workflow"></script>
+<script src="runtime.js?v=research"></script>
+<script src="game.js?v=research"></script>
+<script src="showcase.js?v=research"></script>
 </body>
 </html>

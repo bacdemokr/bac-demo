@@ -72,6 +72,8 @@ async function freePort(){const s=http.createServer();await new Promise(r=>s.lis
     await page.locator('#tab-agentmail').click();await page.locator('#mail-key').fill('fixture-key');await page.locator('#mail-inbox').fill('fixture@agentmail.to');
     await page.getByRole('button',{name:'AgentMail 연결',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#mail-status').textContent.includes('연결됨'));
     assert.equal(await page.locator('#mail-key').inputValue(),'');assert.equal(await page.evaluate(()=>Object.keys(localStorage).length),0);
+    await page.route('**/api/showcase/gateway',r=>{assert.equal(r.request().method(),'POST');assert.equal(r.request().postDataJSON().token,'fixture-gateway-token');return r.fulfill({json:{configured:true,reachable:true,url:'http://127.0.0.1:18789'}});});
+    await page.locator('#tab-gateway').click();await page.locator('#gw-token').fill('fixture-gateway-token');await page.getByRole('button',{name:'Gateway 연결',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#gw-status').textContent.includes('인증 정보 설정됨'));assert.equal(await page.locator('#gw-token').inputValue(),'');assert.equal(await page.evaluate(()=>Object.keys(localStorage).length),0);
     await page.locator('[data-close=settings-dialog]').click();
     await page.route('**/api/integrations/agentmail/messages',r=>r.fulfill({json:{messages:[{id:'m1',subject:'<img src=x onerror=alert(1)>',from:'fixture@example.com',preview:'<script>unsafe()</script>',at:new Date().toISOString()}]}}));
     await page.locator('[data-mission=mail]').click();await page.locator('.inbox-item').waitFor();assert.equal(await page.locator('.inbox-item img,.inbox-item script').count(),0);
@@ -135,6 +137,37 @@ async function freePort(){const s=http.createServer();await new Promise(r=>s.lis
     await extractPage.setContent('<nav><a href="https://help.naver.com/">Navigation and support link</a></nav><a href="https://ader.naver.com/ad">Advertisement destination title</a><div class="fds-web-doc-root"><a href="https://example.com/organic"><span class="sds-comps-text-type-headline1">Actual organic result title</span></a><a href="https://example.com/organic">Repeated description of the same result</a></div>');
     assert.deepEqual((await extractPage.evaluate(extractSearchResults)).map(r=>({title:r.title,url:r.url})),[{title:'Actual organic result title',url:'https://example.com/organic'}]);await extractPage.close();
     console.log('Extraction passed: result title is preferred; navigation, ads and repeated description links are excluded.');
+    let firstArticleBlocked=false;
+    const researchFixture=http.createServer((req,res)=>{
+      res.writeHead(200,{'Content-Type':'text/html'});
+      if(firstArticleBlocked&&req.url.startsWith('/article-0')){res.end('<html><title>Verify you are human</title><body>CAPTCHA challenge. No readable evidence.</body></html>');return;}
+      if(req.url.startsWith('/article-')){const number=req.url.match(/article-(\d+)/)[1];res.end('<html><head><title>Evidence '+number+'</title><meta property="article:published_time" content="2026-10-09"></head><body><nav>Navigation must be excluded</nav><main><h1>Evidence '+number+'</h1><p>'+('Original article evidence '+number+' supports the comparison with factual details. ').repeat(24)+'</p></main></body></html>');}
+      else res.end('<html><title>Research search</title><body><nav><a href="https://help.naver.com/">Unrelated search navigation</a></nav>'+Array.from({length:4},(_,i)=>'<article><a href="http://127.0.0.1:'+researchFixture.address().port+'/article-'+i+'">Comparison original article number '+i+'</a><p>Factual snippet.</p></article>').join('')+'</body></html>');
+    });
+    await new Promise(r=>researchFixture.listen(0,'127.0.0.1',r));
+    const researchBase='http://127.0.0.1:'+researchFixture.address().port;
+    const researchSources={naver:{name:'Naver fixture',url:q=>researchBase+'/search?q='+encodeURIComponent(q)},google:{name:'Google fixture',url:q=>researchBase+'/other?q='+encodeURIComponent(q)}};
+    const prompts=[],researchJobs=new BrowserJobs({endpoint:'http://127.0.0.1:'+cdpPort,sources:researchSources,ask:()=>async(system,user)=>{
+      prompts.push({system,user});
+      if(system.startsWith('Turn the user'))return JSON.stringify({queries:['Alpha official','Beta official'],objective:'Compare actual articles'});
+      if(system.startsWith('Select web'))return JSON.stringify({indices:firstArticleBlocked?[0,1,2,3]:[0,1,2]});
+      const data=JSON.parse(user);assert.equal(data.sources.length,3);assert(data.sources.every(s=>s.text.includes('Original article evidence')));return JSON.stringify({answer:'Alpha and Beta have supporting original articles. '+data.sources.map(s=>'['+s.id+']').join(' '),limitations:['Fixture evidence only.']});
+    }});
+    try{
+      const started=researchJobs.create({query:'Compare Alpha and Beta',mode:'compare',provider:'auto'});
+      for(let i=0;i<400&&researchJobs.public(started.id).status==='running';i++)await wait(100);
+      const done=researchJobs.public(started.id);assert.equal(done.status,'done');assert.equal(done.searches.length,4);assert.equal(done.results.length,4);assert.equal(done.documents.filter(d=>d.status==='read').length,3);assert(done.documents.every(d=>d.published==='2026-10-09'));assert(done.summary.answer.includes('[1]'));assert(done.documents.every(d=>d.text===undefined));assert.equal(prompts.length,3);assert.equal(chrome.isConnected(),true);
+      const evidence=researchJobs.evidence(started.id);assert(evidence.documents.every(d=>!d.text.includes('Navigation must be excluded')));
+      const originalResult=done.results[0];assert.equal(originalResult.searchSources.length,2);
+      console.log('Research passed: question planning, two queries across two sources, deduplication, three actual article navigations, publication dates, evidence-only cited synthesis.');
+      firstArticleBlocked=true;
+      const partial=researchJobs.create({query:'Compare Alpha and Beta',mode:'compare',provider:'auto'});
+      for(let i=0;i<400&&researchJobs.public(partial.id).status==='running';i++)await wait(100);
+      const recovered=researchJobs.public(partial.id);assert.equal(recovered.status,'done');assert.equal(recovered.documents[0].status,'unavailable');assert.equal(recovered.documents.filter(d=>d.status==='read').length,3);assert.equal(recovered.documents.length,4);assert(!recovered.summary.answer.includes('[1]'));assert(recovered.summary.answer.includes('[4]'));
+      console.log('Recovery passed: blocked article is excluded, another candidate is read, and only successful source IDs enter the answer.');
+      global.researchResult=done;
+      global.researchFrame=researchJobs.jobs.get(started.id).frame;
+    }finally{researchFixture.closeAllConnections();await new Promise(r=>researchFixture.close(r));}
     const viewer=createShowcase({browser:new BrowserJobs({endpoint:'http://127.0.0.1:'+cdpPort,sources:{naver:{name:'Naver fixture',url:q=>'http://127.0.0.1:'+fixture.address().port+'/?q='+encodeURIComponent(q)}}})});
     fixtureApi=http.createServer(async(req,res)=>{if(!await viewer.handle(req,res)){res.writeHead(404);res.end();}});
     await new Promise(r=>fixtureApi.listen(0,'127.0.0.1',r));
@@ -145,7 +178,7 @@ async function freePort(){const s=http.createServer();await new Promise(r=>s.lis
       await route.fulfill({status:response.status,contentType:response.headers.get('Content-Type'),body:Buffer.from(await response.arrayBuffer())});
     });
     await page.setViewportSize({width:1440,height:900});await page.locator('[data-mission=browser]').click();
-    await page.locator('#browser-query').fill('fixture query');await page.locator('#browser-run').click();
+    await page.locator('#browser-mode').selectOption('search');await page.locator('#browser-query').fill('fixture query');await page.locator('#browser-run').click();
     await page.waitForFunction(()=>!document.querySelector('#browser-share').disabled);await page.locator('#browser-frame').waitFor();
     assert.equal(await page.locator('.result-card').count(),8);assert.equal(await page.locator('#browser-steps li').count(),6);
     assert(await page.locator('#browser-frame').evaluate(img=>img.naturalWidth===1280));
@@ -155,6 +188,21 @@ async function freePort(){const s=http.createServer();await new Promise(r=>s.lis
     await page.waitForFunction(()=>document.querySelector('#browser-summary-text').textContent.includes('Background reply retained.'));
     assert(await page.locator('#browser-dialog').isVisible());assert.equal(await page.evaluate(()=>window.BacDemo.getActive()),null);
     assert.deepEqual(errors,[]);console.log('Viewer passed: real screenshot and trace, inline summary stays in the browser workflow.');
+    await page.locator('[data-close=browser-dialog]').click();
+    const researchResult=global.researchResult;
+    await page.route('**/api/browser/jobs',r=>r.fulfill({status:202,json:researchResult}));
+    await page.route('**/api/browser/jobs/'+researchResult.id+'/frame.jpg*',r=>r.fulfill({contentType:'image/jpeg',body:global.researchFrame}));
+    await page.locator('[data-mission=browser]').click();await page.locator('[data-research-example=compare]').click();assert.equal(await page.locator('#browser-run').textContent(),'조사 시작');await page.locator('#browser-run').click();
+    await page.waitForFunction(()=>document.querySelector('#browser-summary-text').textContent.includes('supporting original articles'));
+    assert.equal(await page.locator('.evidence-card').count(),3);assert.equal(await page.locator('.source-citation').count(),3);assert.equal(await page.locator('#browser-candidates').getAttribute('open'),null);
+    await page.waitForFunction(()=>document.querySelector('#browser-frame').naturalWidth===1280);
+    assert((await page.locator('#browser-plan').textContent()).includes('Alpha official'));
+    await page.setViewportSize({width:390,height:844});await wait(300);assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    await page.locator('#browser-summary').scrollIntoViewIfNeeded();if(process.env.SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'bac-demo-research-mobile.png')});
+    await page.setViewportSize({width:1440,height:900});await wait(300);await page.evaluate(()=>document.querySelector('#browser-dialog').scrollTop=0);if(process.env.SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'bac-demo-research-preview.png')});
+    await page.setViewportSize({width:390,height:844});await page.evaluate(()=>window.BacShowcase.settings('gateway'));await wait(300);assert(await page.evaluate(()=>document.querySelector('#settings-dialog').scrollWidth<=document.querySelector('#settings-dialog').clientWidth));await page.locator('[data-close=settings-dialog]').click();
+    assert.deepEqual(errors,[]);console.log('Research UI passed: automatic answer, clickable citations, dated evidence, collapsed candidates, editable question presets, mobile width.');
+
 
   }finally{
     if(fixtureApi){fixtureApi.closeAllConnections();await new Promise(r=>fixtureApi.close(r));}if(chrome)await chrome.close();if(fixture){fixture.closeAllConnections();await new Promise(r=>fixture.close(r));}server.kill();await new Promise(r=>{if(server.exitCode!==null)r();else server.once('exit',r);});

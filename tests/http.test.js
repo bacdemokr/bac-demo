@@ -31,6 +31,12 @@ test('Actual server validates POST tasks, preserves poll results, and reports Ga
     rejectGateway=true;const failed=await (await post('/api/tasks',input)).json();let failure;
     for(let i=0;i<80;i++){failure=await (await fetch(base+'/api/tasks/'+failed.jobId)).json();if(failure.status==='done')break;await wait(30);}
     assert.match(failure.error,/인증/);assert.equal(failure.reply,undefined);assert(!JSON.stringify(failure).includes('private-fixture-token'));
+    const before=seen.length;
+    assert.equal((await post('/api/showcase/gateway',{url:'ftp://invalid',token:'another-fixture-token'})).status,400);
+    const connection=await post('/api/showcase/gateway',{url:'http://127.0.0.1:'+gateway.address().port,token:'another-fixture-token'});
+    assert.equal(connection.status,200);const connectionState=await connection.json();assert.equal(connectionState.configured,true);assert(!JSON.stringify(connectionState).includes('another-fixture-token'));assert.equal(seen.length,before);
+    const disconnected=await post('/api/showcase/gateway',{disconnect:true});assert.equal((await disconnected.json()).configured,false);
+    assert.equal((await post('/api/tasks',input)).status,409);
     assert.equal((await fetch(base+'/api/tasks/not-found')).status,404);
   }finally{child.kill();await new Promise(r=>{if(child.exitCode!==null)r();else child.once('exit',r);});gateway.closeAllConnections();await new Promise(r=>gateway.close(r));}
 });
