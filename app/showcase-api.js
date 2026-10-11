@@ -14,20 +14,20 @@ async function readJSON(req) {
     if (origin.host !== req.headers.host) throw new Problem("같은 데모 화면에서 요청해주세요.", 403);
   }
   if (!/^application\/json(?:;|$)/i.test(req.headers["content-type"] || "")) throw new Problem("JSON 요청이 필요합니다.", 415);
-  let body = "", bytes = 0;
+  const chunks = []; let bytes = 0;
   for await (const chunk of req) {
     bytes += chunk.length;
     if (bytes > 40000) throw new Problem("요청이 너무 큽니다.", 413);
-    body += chunk;
+    chunks.push(Buffer.from(chunk));
   }
   try {
-    const data = JSON.parse(body);
+    const data = JSON.parse(Buffer.concat(chunks).toString("utf8"));
     if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error();
     return data;
   } catch { throw new Problem("올바른 JSON 내용을 보내주세요."); }
 }
 
-function createShowcase({ telegramToken = "", gateway = "", gatewayToken = "", fetcher = fetch, browser } = {}) {
+function createShowcase({ telegramToken = "", gateway = "", gatewayToken = "", fetcher = fetch, browser, capabilities = () => ({}) } = {}) {
   const telegram = new TelegramBridge({ token: telegramToken, chatId: process.env.TG_CHAT_ID, fetcher });
   const mail = new AgentMailBridge({ apiKey: process.env.AGENTMAIL_API_KEY, inboxId: process.env.AGENTMAIL_INBOX_ID, fetcher });
   browser ||= new BrowserJobs({ endpoint: process.env.BROWSER_CDP_URL || "http://127.0.0.1:9222" });
@@ -43,7 +43,7 @@ function createShowcase({ telegramToken = "", gateway = "", gatewayToken = "", f
           probe(gateway + "/health", gatewayToken ? { Authorization: `Bearer ${gatewayToken}` } : {}),
           probe(browser.endpoint + "/json/version"),
         ]);
-        respond(res, 200, { gateway: { reachable: gatewayReachable, configured: !!gatewayToken }, browser: { connected: browserConnected }, telegram: telegram.public(), agentmail: mail.public() });
+        respond(res, 200, { gateway: { reachable: gatewayReachable, configured: !!gatewayToken }, browser: { connected: browserConnected }, telegram: telegram.public(), agentmail: mail.public(), ...capabilities() });
       } else if (p === "/api/integrations/telegram" && req.method === "GET") respond(res, 200, telegram.public());
       else if (p === "/api/integrations/telegram" && req.method === "POST") respond(res, 200, await telegram.configure(await readJSON(req)));
       else if (p === "/api/integrations/telegram/send" && req.method === "POST") respond(res, 200, await telegram.send((await readJSON(req)).text));

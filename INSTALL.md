@@ -11,7 +11,7 @@ npm install
 cp .env.example .env
 ```
 
-Set `DEMO_MODEL` to a model available on your gateway. `BROWSER_MODEL` optionally overrides it for Naver. Set `GH_OWNER` to your authenticated GitHub account and `GH_REPO` to your demo repository (`bac-demo`). The target needs a `main` branch. Generated files go under `demo-features/`; GitHub creates that directory with the first file.
+The configured Gateway agent model is used by default. Set `DEMO_MODEL` only to override it with a model available on your gateway. `BROWSER_MODEL` optionally overrides it for browser summaries. Set `GH_OWNER` to your authenticated GitHub account and `GH_REPO` to your demo repository (`bac-demo`). The target needs a `main` branch. Generated files go under `demo-features/`; GitHub creates that directory with the first file.
 
 ## OpenClaw
 
@@ -39,7 +39,7 @@ The service reads `.env`. For a foreground run, use `node --env-file=.env app/se
 ```bash
 systemctl --user restart bac-demo
 journalctl --user -u bac-demo -f
-curl http://127.0.0.1:8081/api/agents
+curl http://127.0.0.1:8000/api/agents
 bash scripts/ensure-cdp.sh
 ```
 
@@ -64,7 +64,7 @@ On macOS, use a dedicated profile:
 
 Keep CDP on loopback. A site may present CAPTCHA, consent, or access restrictions. The viewer shows the actual screenshot and does not substitute invented results. An unavailable CDP endpoint produces a clear setup message. Closing the viewer does not cancel the worker; you can reopen it to see its progress. Search-page links are extracted with generic selectors, so extraction quality can vary by site.
 
-The search agent can summarize a completed browser job without repeating the search. This requires a working `bac` gateway agent and model. `BROWSER_MODEL` overrides the model used for summarization.
+The browser viewer can summarize a completed browser job without repeating the search. This requires a working `bac` gateway agent and model. `BROWSER_MODEL` overrides the model used for summarization.
 
 ## Optional Telegram
 
@@ -73,7 +73,7 @@ Use a **separate bot** from any existing OpenClaw Telegram integration to avoid 
 1. Create it through [BotFather](https://t.me/BotFather).
 2. Send `/start` to your new bot.
 3. Open **연결 설정 → Telegram** in the demo and enter its Bot token and numeric Chat ID. [userinfobot](https://t.me/userinfobot) can show your personal Chat ID. Group IDs are usually negative.
-4. After verification, select TelegramAgent for two-way chat, or share a research result from the preview dialog.
+4. After verification, open **메시지 → Telegram** for two-way chat, or share a research result from the preview dialog.
 
 Connecting calls `getMe` and `getChat`; it does not send a test message. Messages from other chats are ignored. Replies always target the configured Chat ID. A reconnect drops the old message buffer and polling client. Disconnecting also invalidates any pending verification.
 
@@ -87,7 +87,7 @@ The UI verifies the inbox with `GET /v0/inboxes/{inbox_id}`, reads message previ
 
 For startup configuration, set `AGENTMAIL_API_KEY` and `AGENTMAIL_INBOX_ID` in the gitignored `.env`. UI-entered credentials are memory-only. Reopening or reloading the page keeps the server connection; restarting the server requires re-entering UI credentials.
 
-This MailAgent viewer uses the AgentMail REST API. To let an OpenClaw agent call mail tools directly, configure the [official AgentMail MCP integration](https://www.agentmail.to/docs/integrations/mcp) separately, or follow the AgentMail skill setup in the linked demo guide. Do not describe the viewer's direct API calls as MCP calls.
+The message viewer uses the AgentMail REST API. To let an OpenClaw agent call mail tools directly, configure the [official AgentMail MCP integration](https://www.agentmail.to/docs/integrations/mcp) separately, or follow the AgentMail skill setup in the linked demo guide. Do not describe the viewer's direct API calls as MCP calls.
 
 ## Local verification
 

@@ -65,6 +65,10 @@ class TelegramBridge {
       const bot = await this.request(c, "getMe");
       if (this.connection !== c || revision !== this.revision) return;
       if (!bot.is_bot || !bot.username) throw new Problem("Telegram 봇 정보를 확인할 수 없습니다.", 502);
+      if (!/^-?\d{1,20}$/.test(c.chatId)) throw new Problem("Telegram Chat ID를 설정해주세요.", 409);
+      const chat = await this.request(c, "getChat", {chat_id:c.chatId});
+      if (this.connection !== c || revision !== this.revision) return;
+      if (String(chat.id) !== c.chatId) throw new Problem("Telegram Chat ID를 확인할 수 없습니다.", 502);
       c.bot = bot.username; c.verified = true; this.poll(true);
     } catch (error) { if (this.connection === c) this.error = error.message; }
   }

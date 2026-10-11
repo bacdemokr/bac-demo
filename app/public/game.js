@@ -1,4 +1,4 @@
-/* BaC Multi-Agent Demo - game engine */
+/* Agentic AI Demo - canvas and conversations */
 (() => {
   const canvas = document.getElementById("game");
   const wrap = document.getElementById("wrap");
@@ -30,6 +30,7 @@
   const emit = (type, detail) => window.dispatchEvent(new CustomEvent("bac:" + type, { detail }));
   const mobileView = () => window.innerWidth <= 900;
   const compactView = () => mobileView() && wrap.classList.contains("chat-open");
+  const characterScale=()=>compactView()?(H<380?.65:.76):1;
   function arena() {
     const mobile = mobileView(), compact = compactView();
     const docked = wrap.classList.contains("chat-open");
@@ -45,9 +46,9 @@
   function home(i) {
     const a = arena();
     if (compactView()) {
-      const firstRow = i < 4, count = firstRow ? Math.min(4, AGENTS.length) : AGENTS.length - 4;
-      const column = firstRow ? i : i - 4;
-      return { x: a.left + (a.right - a.left) * (column + .5) / count, y: firstRow ? Math.max(146, a.top) : Math.max(231, H - 64) };
+      const columns = Math.ceil(AGENTS.length / 2), firstRow = i < columns, count = firstRow ? columns : AGENTS.length - columns;
+      const column = firstRow ? i : i - columns;
+      return { x: a.left + (a.right - a.left) * (column + .5) / count, y: firstRow ? Math.max(146, document.getElementById("agent-roster").offsetTop + document.getElementById("agent-roster").offsetHeight + 36) : Math.max(231, H - 64) };
     }
     const angle = (i / Math.max(AGENTS.length, 1)) * Math.PI * 2 - Math.PI / 2;
     return { x: a.x + Math.cos(angle) * a.rx, y: a.y + Math.sin(angle) * a.ry };
@@ -111,7 +112,7 @@
 
   // ---------- Draw a Claw mascot character (color-tinted) ----------
   function drawChar(c, t) {
-    const scale = compactView() ? .76 : 1;
+    const scale = characterScale();
     ctx.save();
     ctx.translate(c.x, c.y); ctx.scale(scale, scale); ctx.translate(-c.x, -c.y);
     const bob = Math.sin(t * 2 + c.bob) * (c.busy ? 4 : 2.5);
@@ -308,9 +309,11 @@
 
     // ---- MultiagentBot transient subagents + handoff box ----
     for (const k of maKids) {
-      // ease toward target slot
-      k.x += (k.tx - k.x) * Math.min(1, dt * 6);
-      k.y += (k.ty - k.y) * Math.min(1, dt * 6);
+      // Reduced motion keeps the working team visible without movement.
+      if(motionPaused){k.x=k.tx;k.y=k.ty;}else{
+        k.x += (k.tx - k.x) * Math.min(1, dt * 6);
+        k.y += (k.ty - k.y) * Math.min(1, dt * 6);
+      }
       drawChar(k, t);
       drawTaskLabel(k);
     }
@@ -353,539 +356,131 @@
     ctx.fillText(k.label, k.x, by + 9);
   }
 
-  // ---------- Interaction ----------
-  let activeChar = null;
-
-  function hitTest(mx, my) {
-    const scale = compactView() ? .76 : 1;
-    // topmost (largest y) first
-    const sorted = [...chars].sort((a, b) => b.y - a.y);
-    for (const c of sorted) {
-      if (Math.abs(mx - c.x) < 32 * scale && my - c.y < 40 * scale && my - c.y > -54 * scale) return c;
-    }
-    return null;
+  // ---------- Conversation state ----------
+  let activeChar=null,chatOpener=null;
+  const chatEl=document.getElementById('chat'),msgsEl=document.getElementById('msgs'),inputEl=document.getElementById('input'),sendBtn=document.getElementById('send'),hintEl=document.getElementById('hint');
+  const sessions=new Map();
+  function session(c){if(!sessions.has(c.id)){sessions.set(c.id,{nodes:[],draft:'',initialized:false});history[c.id]=[];}return sessions.get(c.id);}
+  function escapeHtml(value){return String(value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+  function renderInline(text){return escapeHtml(text).replace(/(https?:\/\/[^\s<>"']+)/g,'<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>').replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>');}
+  function append(c,role,text){
+    const node=document.createElement('div');node.className='msg '+role;
+    if(role.startsWith('me'))node.textContent=text;else node.innerHTML=renderInline(text);
+    const state=session(c);state.nodes.push(node);if(state.nodes.length>60)state.nodes.shift().remove();
+    if(activeChar===c){const bottom=msgsEl.scrollHeight-msgsEl.scrollTop-msgsEl.clientHeight<50;msgsEl.append(node);if(bottom)msgsEl.scrollTop=msgsEl.scrollHeight;}
+    return node;
   }
-
-  canvas.addEventListener("mousemove", (e) => {
-    const rect = canvas.getBoundingClientRect();
-    const c = hitTest(e.clientX - rect.left, e.clientY - rect.top);
-    chars.forEach(ch => ch.hover = false);
-    if (c) { c.hover = true; canvas.style.cursor = "pointer"; }
-    else canvas.style.cursor = "default";
-  });
-
-  canvas.addEventListener("click", (e) => {
-    const rect = canvas.getBoundingClientRect();
-    const c = hitTest(e.clientX - rect.left, e.clientY - rect.top);
-    // Ignore clicks on the bot that's already open (prevents wiping an
-    // in-flight conversation / clearing the panel mid-request).
-    if (c && c !== activeChar) openChat(c);
-    else if (!c) closeChat({ restoreFocus: false });
-  });
-
-  // ---------- Chat UI ----------
-  const chatEl = document.getElementById("chat");
-  const msgsEl = document.getElementById("msgs");
-  const inputEl = document.getElementById("input");
-  const sendBtn = document.getElementById("send");
-  const hintEl = document.getElementById("hint");
-  let chatOpener = null;
-
-  function openChat(c) {
-    if (!chatEl.contains(document.activeElement)) chatOpener = document.activeElement;
-    stopTgRecv();
-    activeChar = c;
-    sendBtn.disabled = !!c.busy;
-    chatEl.setAttribute("aria-hidden", "false");
-    chatEl.inert = false;
-    wrap.classList.add("chat-open");
-    document.getElementById("chat-dot").style.background = c.color;
-    document.getElementById("chat-name").textContent = c.name;
-    document.getElementById("chat-role").textContent = c.role;
-    emit("agent", c);
-    msgsEl.innerHTML = "";
-    chatEl.classList.add("open");
-    hintEl.style.opacity = "0";
-
-    // Fresh start every click: wipe this character's conversation history.
-    history[c.id] = [];
-
-    if (mobileView()) window.scrollTo(0, 0);
-    inputEl.focus({ preventScroll: true });
-
-    // Spark Monitor: don't just greet - auto-pull a live status summary.
-    if (c.live === "sysinfo" || c.id === "sysmon") {
-      runTurn(c, "현재 시스템 상태를 한국어로 간단히 알려주세요.", { auto: true });
-    }
-    // ArxivBot: the cron job already scanned arXiv and cached a pre-formatted
-    // announcement. On click we just read it back instantly (no LLM round-trip),
-    // so the Top 3 appear immediately - with a brief "pulling it up" beat.
-    if (c.live === "arxiv") {
-      showArxivTop3(c);
-      // Start the per-minute cron only once the user has engaged with ArxivBot
-      // (saves resources - no background polling until you click it).
-      startArxivCron();
-    }
-    // TelegramBot: start listening for inbound Telegram messages.
-    if (c.live === "telegram") startTgRecv(c);
-    // MultiagentBot: offer ready-made feature ideas as clickable chips.
-    if (c.live === "multiagent") renderMaSuggestions(c);
-    // Other agents wait for the user to ask before acting.
+  function addMsg(role,text){if(activeChar)return append(activeChar,role==='me'?'me':'bot',text);}
+  function update(node,text,error=false){node.classList.remove('typing');node.classList.toggle('error',error);node.innerHTML=renderInline(text);}
+  function sync(){sendBtn.disabled=!activeChar||activeChar.busy||!(window.BacShowcase?.canRun(activeChar.id)??true);emit('state',activeChar);}
+  function stash(){if(activeChar)session(activeChar).draft=inputEl.value;}
+  function openChat(c){
+    if(c===activeChar)return;
+    stash();if(!chatEl.contains(document.activeElement))chatOpener=document.activeElement;
+    activeChar=c;chatEl.inert=false;chatEl.setAttribute('aria-hidden','false');wrap.classList.add('chat-open');chatEl.classList.add('open');
+    document.getElementById('chat-dot').style.background=c.color;document.getElementById('chat-name').textContent=c.name;
+    const state=session(c);msgsEl.replaceChildren(...state.nodes);msgsEl.scrollTop=msgsEl.scrollHeight;inputEl.value=state.draft;
+    hintEl.style.opacity='0';emit('agent',c);sync();if(mobileView())scrollTo(0,0);inputEl.focus({preventScroll:true});
+    if(!state.initialized){state.initialized=true;if(c.id==='sysmon')showSystem(c);if(c.id==='arxiv'){showPapers(c);startArxivCron();}if(c.id==='multiagent')suggestions(c);}
   }
-
-  // Small standalone modules suitable for a live coding demo.
-  const MA_SUGGESTIONS = [
-    { label: "📊 Health summary", req: "Build a dependency-free JavaScript function that summarizes GPU temperature and disk usage with configurable warning thresholds" },
-    { label: "📚 Paper formatter", req: "Build a dependency-free JavaScript function that formats paper titles, authors, and links into a Markdown reading list" },
-    { label: "⏱️ Task timer", req: "Build a dependency-free JavaScript module that tracks elapsed time for named tasks" },
-  ];
-  function renderMaSuggestions(c) {
-    const wrap = document.createElement("div");
-    wrap.className = "ma-chips";
-    for (const s of MA_SUGGESTIONS) {
-      const b = document.createElement("button");
-      b.className = "ma-chip";
-      b.textContent = s.label;
-      b.onclick = () => {
-        if (activeChar !== c) return;
-        wrap.querySelectorAll("button").forEach((x) => (x.disabled = true));
-        addMsg("me", s.req);
-        runMultiagent(c, s.req);
-      };
-      wrap.appendChild(b);
-    }
-    msgsEl.appendChild(wrap);
-    msgsEl.scrollTop = msgsEl.scrollHeight;
+  function closeChat({restoreFocus=true}={}){
+    if(!activeChar)return;stash();const focused=chatEl.contains(document.activeElement);activeChar=null;
+    chatEl.classList.remove('open');wrap.classList.remove('chat-open');chatEl.inert=true;chatEl.setAttribute('aria-hidden','true');hintEl.style.opacity='1';emit('agent',null);
+    if(focused){if(restoreFocus&&chatOpener?.isConnected&&chatOpener!==document.body)chatOpener.focus({preventScroll:true});else document.activeElement.blur();}
   }
-
-  function closeChat({ restoreFocus = true } = {}) {
-    if (!activeChar) return;
-    const focusWasInChat = chatEl.contains(document.activeElement);
-    chatEl.classList.remove("open");
-    wrap.classList.remove("chat-open");
-    chatEl.setAttribute("aria-hidden", "true");
-    chatEl.inert = true;
-    emit("agent", null);
-    stopTgRecv();
-    maCleanup();
-    activeChar = null;
-    if (chars.length) hintEl.style.opacity = "1";
-    if (focusWasInChat) {
-      if (restoreFocus && chatOpener?.isConnected && chatOpener !== document.body) chatOpener.focus({ preventScroll: true });
-      else document.activeElement.blur();
-    }
+  function hitTest(x,y){const scale=characterScale();return [...chars].sort((a,b)=>b.y-a.y).find(c=>Math.abs(x-c.x)<32*scale&&y-c.y<40*scale&&y-c.y>-54*scale);}
+  canvas.addEventListener('mousemove',e=>{const r=canvas.getBoundingClientRect(),c=hitTest(e.clientX-r.left,e.clientY-r.top);chars.forEach(a=>a.hover=a===c);canvas.style.cursor=c?'pointer':'default';});
+  canvas.addEventListener('mouseleave',()=>chars.forEach(c=>c.hover=false));
+  canvas.addEventListener('click',e=>{const r=canvas.getBoundingClientRect(),c=hitTest(e.clientX-r.left,e.clientY-r.top);if(c)openChat(c);else closeChat({restoreFocus:false});});
+  document.getElementById('chat-close').onclick=()=>closeChat();
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!document.querySelector('dialog[open]'))closeChat();});
+  document.addEventListener('click',e=>{if(!activeChar||document.querySelector('dialog[open]')||e.target.closest('#chat,dialog,#game,[data-agent],[data-mission="team"],[data-mission="research"],#motion-toggle'))return;closeChat({restoreFocus:false});});
+  inputEl.addEventListener('input',()=>{if(activeChar)session(activeChar).draft=inputEl.value;});
+  async function runTurn(c,text){
+    if(c.busy)return;if(!(window.BacShowcase?.canRun(c.id)??true)){window.BacShowcase?.settings('tools');return;}
+    session(c);c.busy=true;sync();
+    history[c.id].push({role:'user',content:text});
+    const loading=append(c,'bot typing','응답 중...');emit('activity',{agent:c.name,text:'요청 시작'});
+    try{
+      const messages=history[c.id].slice(-20);let size=messages.reduce((n,m)=>n+m.content.length,0);while(size>28000&&messages.length>1)size-=messages.shift().content.length;
+      const result=await window.DemoAPI.task({agent:c.id,messages});
+      if(result.error)throw new Error(result.error);
+      history[c.id].push({role:'assistant',content:result.reply});update(loading,result.reply);
+      emit('result',{agent:c.name,text:result.reply});emit('activity',{agent:c.name,text:'응답 완료'});
+      c.bubble={text:(result.bubble||result.reply).replace(/\n/g,' ').slice(0,80),until:performance.now()+5000};
+    }catch(error){update(loading,error.message,true);history[c.id].pop();emit('activity',{agent:c.name,text:error.message});}
+    finally{c.busy=false;sync();}
   }
-  document.getElementById("chat-close").addEventListener("click", () => closeChat());
-  document.addEventListener("click", e => {
-    if (!activeChar || document.querySelector("dialog[open]")) return;
-    if (e.target.closest("#chat, dialog, #game, [data-agent], [data-mission='team'], [data-mission='research'], #motion-toggle")) return;
-    closeChat({ restoreFocus: false });
-  });
-
-  function escapeHtml(s) {
-    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  async function sendMsg(){
+    const c=activeChar,text=inputEl.value.trim();if(!c||!text||c.busy||sendBtn.disabled)return;
+    inputEl.value='';session(c).draft='';append(c,'me',text);
+    if(c.id==='multiagent')runMultiagent(c,text);else runTurn(c,text);
   }
-  // Minimal, safe inline markdown -> HTML for bot messages: escapes first,
-  // then renders **bold**/*italic*/_italic_, autolinks URLs, and line breaks.
-  function renderInline(text) {
-    let h = escapeHtml(text);
-    h = h.replace(/(https?:\/\/[^\s<>"']+)/g,
-      '<a href="$1" target="_blank" rel="noopener noreferrer" style="color:#5b8def;text-decoration:underline">$1</a>');
-    h = h.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
-    h = h.replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,!?]|$)/g, "$1<b>$2</b>");
-    h = h.replace(/(^|[\s(])_([^_\n]+)_(?=[\s).,!?]|$)/g, "$1<i>$2</i>");
-    h = h.replace(/\n/g, "<br>");
-    return h;
+  document.getElementById('inbar').onsubmit=e=>{e.preventDefault();sendMsg();};
+  async function showSystem(c){
+    if(c.busy)return;c.busy=true;sync();const node=append(c,'bot typing','시스템 상태 확인 중...');
+    try{const info=await window.DemoAPI.request('/api/sysinfo');const gpu=info.gpu;
+      const text=(gpu?`GPU: ${gpu.name}\n사용률: ${gpu.utilization_pct}%\n메모리: ${gpu.mem_used_mib} / ${gpu.mem_total_mib} MiB\n온도: ${gpu.temp_c}°C`:'GPU 지표를 사용할 수 없습니다.')+(info.disk?`\n\n디스크: ${info.disk.used} / ${info.disk.size}\n사용률: ${info.disk.use_pct}\n사용 가능: ${info.disk.avail}`:'\n디스크 지표를 사용할 수 없습니다.');
+      update(node,text);emit('result',{agent:c.name,text});emit('activity',{agent:c.name,text:'로컬 시스템 지표 확인'});
+    }catch(error){update(node,error.message,true);}finally{c.busy=false;sync();}
   }
-
-  function addMsg(role, text) {
-    const d = document.createElement("div");
-    const isBot = role.indexOf("me") !== 0;
-    d.className = "msg " + (isBot ? "bot" : "me") +
-      (role.indexOf("headline") >= 0 ? " headline" : "");
-    // Bot messages get light markdown (bold/italic/links); user text stays plain.
-    if (isBot && role.indexOf("headline") < 0) d.innerHTML = renderInline(text);
-    else d.textContent = text;
-    msgsEl.appendChild(d);
-    msgsEl.scrollTop = msgsEl.scrollHeight;
-    return d;
+  async function showPapers(c){
+    if(c.paperLoading)return;c.paperLoading=true;sync();const node=append(c,'bot typing','논문 조회 중...');
+    try{const data=await window.DemoAPI.request('/bac-arxiv/top3.json');const label=data.source==='live'?'':data.source==='cached'?'저장된 논문 모음\n\n':'참고 논문 모음\n\n';lastPapers=JSON.stringify(data.papers.map(p=>p.link));const text=label+(data.text||'논문이 없습니다.');update(node,text);emit('result',{agent:c.name,text});emit('activity',{agent:c.name,text:data.source==='live'?'arXiv 피드 확인':'논문 모음 확인'});}
+    catch(error){update(node,error.message,true);}finally{c.paperLoading=false;sync();}
   }
-
-  function addImage(src) {
-    const a = document.createElement("a");
-    a.href = src; a.target = "_blank";
-    const img = document.createElement("img");
-    img.src = src; img.className = "shot";
-    img.alt = "live Naver result";
-    a.appendChild(img);
-    msgsEl.appendChild(a);
-    img.onload = () => { msgsEl.scrollTop = msgsEl.scrollHeight; };
-    return a;
+  const MA_SUGGESTIONS=[{label:'시스템 지표 요약',request:'Build a dependency-free CommonJS function summarizing GPU temperature and disk usage.'},{label:'논문 목록 포맷',request:'Build a dependency-free CommonJS function formatting paper titles and links into Markdown.'},{label:'작업 타이머',request:'Build a dependency-free CommonJS timer module for tracking named tasks.'}];
+  function suggestions(c){const block=document.createElement('div');block.className='ma-chips';for(const s of MA_SUGGESTIONS){const b=document.createElement('button');b.className='ma-chip';b.textContent=s.label;b.onclick=()=>{if(c.busy)return;if(!(window.BacShowcase?.canRun(c.id)??false)){window.BacShowcase?.settings('tools');return;}append(c,'me',s.request);runMultiagent(c,s.request);};block.append(b);}session(c).nodes.push(block);if(activeChar===c)msgsEl.append(block);}
+  function maCleanup(){maKids=[];maBox=null;maParent=null;}
+  async function runMultiagent(c,request,existingJob){
+    if(c.busy)return;c.busy=true;sync();maCleanup();maParent=c;
+    const a=arena(),distance=Math.min(105,(a.right-a.left)/4);
+    const pm={role:'pm',name:'PM',label:'PM',baby:true,color:'#5b8def',x:c.x,y:c.y,tx:a.x-distance,ty:a.y-55,bob:0,dir:1};
+    const dev={role:'dev',name:'Dev',label:'Dev',baby:true,color:'#34c98a',x:c.x,y:c.y,tx:a.x+distance,ty:a.y-55,bob:2,dir:-1};maKids=[pm,dev];
+    const loading=append(c,'bot typing','협업 작업 진행 중...');let seen=0;
+    try{
+      const id=existingJob||(await window.DemoAPI.request('/api/team/jobs',{requestId:crypto.randomUUID(),messages:[{role:'user',content:request}]})).jobId;c.teamJobId=id;
+      const result=await window.DemoAPI.poll('/api/team/jobs/'+id,{timeout:240000,onUpdate:data=>{
+        for(const st of data.stages.slice(seen)){emit('activity',{agent:st.actor||c.name,text:st.text});
+          if(st.stage==='pm-start'){pm.active=true;pm.label='PM: 계획';}
+          if(st.stage==='pm-done'){pm.active=false;pm.label='PM: 완료';append(c,'bot',st.plan||st.text);}
+          if(st.stage==='handoff')maBox={x:pm.x,y:pm.y,tx:dev.x,ty:dev.y,hold:'dev'};
+          if(st.stage==='dev-start'){dev.active=true;dev.label='Dev: 구현';}
+          if(st.stage==='dev-done'){dev.active=false;dev.label=st.prUrl?'Dev: PR 완료':'Dev: 실패';maBox=null;append(c,'bot',st.text+(st.prUrl?'\n'+st.prUrl:''));if(st.prUrl)emit('result',{agent:c.name,text:st.text+'\n'+st.prUrl});}
+          if(st.stage==='error')append(c,'bot error',st.text);
+        }seen=data.stages.length;
+      }});
+      const failed=result.stages.some(s=>s.stage==='error')||!result.stages.some(s=>s.stage==='dev-done'&&s.prUrl);
+      update(loading,failed?'협업 작업을 완료하지 못했습니다. 위 실행 기록을 확인하세요.':'협업 작업 완료',failed);c.teamJobId=null;
+    }catch(error){update(loading,error.message,true);}
+    finally{c.busy=false;sync();setTimeout(()=>{if(maParent===c&&!c.busy)maCleanup();},1800);}
   }
-
-  async function runTurn(c, text, opts) {
-    if (c.busy) return;
-    c.busy = true;
-    emit("activity", { agent: c.name, text: "Gateway에 요청 전달" });
-    const isAuto = opts && opts.auto;
-    // Auto turns (e.g. the click-triggered status/map request) are hidden from
-    // the chat panel so it doesn't look like the user typed them.
-    history[c.id].push({ role: "user", content: text, hidden: !!isAuto });
-    const mine = c;                 // the character this turn belongs to
-    const mineId = c.id;            // stable id (object refs can change on rebuild)
-    const isActive = () => activeChar && activeChar.id === mineId;
-    sendBtn.disabled = true;
-    const label = c.live === "search" ? "🔍 Searching Naver…"
-                : "…";
-    // Only show the typing indicator if this character's panel is open.
-    const typing = isActive() ? addMsg("bot", label) : null;
-    if (typing) typing.classList.add("typing");
-    let j = null;
-    let lastErr = null;
-    // The browser environment aborts slow fetches after a few seconds, so we
-    // never hold a long connection. Instead: start an async job (returns a
-    // jobId instantly), then poll for the result with short sub-second
-    // requests until it's done.
-    try {
-      const cleanMsgs = (history[mineId] || []).map((m) => ({
-        role: m.role,
-        content: typeof m.content === "string" ? m.content : String(m.content ?? ""),
-      }));
-      const bodyStr = JSON.stringify({ agent: mineId, messages: cleanMsgs, searchJobId: opts?.searchJobId });
-      // Disguise as a static asset GET: base64 payload in the path.
-      const b64 = btoa(unescape(encodeURIComponent(bodyStr)))
-        .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-      console.log("[runTurn] starting job", { agent: mineId, bytes: bodyStr.length });
-      const startR = await fetch("/bac-data/" + b64 + ".json?_=" + Date.now());
-      const startJ = await startR.json();
-      const jobId = startJ.jobId;
-      if (!jobId) throw new Error("no jobId returned");
-      console.log("[runTurn] job started", jobId);
-      // Poll up to ~150s (300 * 500ms) for completion.
-      for (let i = 0; i < 300; i++) {
-        await new Promise((rs) => setTimeout(rs, 500));
-        if (!isActive()) { console.log("[runTurn] navigated away, stop polling"); break; }
-        const pr = await fetch("/bac-poll/" + jobId + ".json?_=" + Date.now());
-        const pj = await pr.json();
-        if (pj.status === "done") { j = pj; console.log("[runTurn] job done", { hasReply: !!pj.reply }); break; }
-        if (pj.status === "unknown") { lastErr = new Error("job expired"); break; }
-        // else status === "pending": keep polling
-      }
-    } catch (err) {
-      lastErr = err;
-      console.warn("[runTurn] job/poll failed:", err && err.message);
-    }
-    if (j === null) {
-      console.warn("chat failed:", lastErr && lastErr.message);
-      if (isActive() && typing) typing.remove();
-      c.busy = false;
-      if (isActive()) { sendBtn.disabled = false; addMsg("bot", "응답을 받지 못했습니다. Gateway 연결을 확인하고 다시 시도해주세요."); }
-      emit("activity", { agent: c.name, text: "요청 실패 또는 대화 이동" });
-      return;
-    }
-    try {
-      const reply = j.reply || j.error || "(no response)";
-      history[mineId].push({ role: "assistant", content: reply });
-      if (!j.error) emit("result", { agent: c.name, text: reply });
-      emit("activity", { agent: c.name, text: j.error ? "요청 실패" : "응답 수신" });
-      // Render if this character's panel is still open (compare by id).
-      if (isActive()) {
-        if (typing) typing.remove();
-        // Show the concise SUMMARY headline in the chat, then the detail.
-        if (j.bubble) addMsg("bot headline", j.bubble);
-        addMsg("bot", reply);
-        console.log("[runTurn] rendered reply into panel");
-        if (j.screenshot) addImage(j.screenshot);
-        // Only user-initiated turns update the floating bubble.
-        if (!isAuto) {
-          const short = j.bubble || reply.replace(/\n+/g, " ").slice(0, 90);
-          mine.bubble = { text: short, until: performance.now() + 8000 };
-        }
-      } else {
-        console.log("[runTurn] NOT rendered - panel not active for", mineId, "activeChar=", activeChar && activeChar.id);
-      }
-    } catch (err) {
-      console.error("render failed:", err);
-    } finally {
-      c.busy = false;
-      if (isActive()) { sendBtn.disabled = false; inputEl.focus(); }
-    }
-  }
-
-  async function sendMsg() {
-    const text = inputEl.value.trim();
-    if (!text || !activeChar || activeChar.busy || sendBtn.disabled) return;
-    const c = activeChar;
-    inputEl.value = "";
-    addMsg("me", text);
-    if (c.live === "telegram") { tgSendMsg(c, text); return; }
-    if (c.live === "multiagent") { runMultiagent(c, text); return; }
-    if (c.live === "search" && window.BacShowcase) { window.BacShowcase.browse(text); return; }
-    if (c.live === "agentmail") { window.BacShowcase?.inbox(); return; }
-    runTurn(c, text);
-  }
-  document.getElementById("inbar").addEventListener("submit", e => { e.preventDefault(); sendMsg(); });
-
-  // ---------- Telegram two-way bridge (client) ----------
-  let tgPollTimer = null;
-  let tgLastId = 0;
-  async function tgSendMsg(c, text) {
-    sendBtn.disabled = true;
-    try {
-      const r = await fetch("/api/integrations/telegram/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
-      const j = await r.json();
-      if (activeChar === c) {
-        if (j.ok) {
-          emit("activity", { agent: c.name, text: "Telegram에 메시지 전달" });
-          c.bubble = { text: "Sent to Telegram 📤", until: performance.now() + 4000 };
-        } else {
-          addMsg("bot", j.note || ("Could not send: " + (j.error || "unknown error")));
-        }
-      }
-    } catch (err) {
-      if (activeChar === c) addMsg("bot", "Telegram으로 보내지 못했습니다. 연결 설정을 확인해주세요.");
-    } finally {
-      if (activeChar === c) { sendBtn.disabled = false; inputEl.focus(); }
-    }
-  }
-  function startTgRecv(c) {
-    stopTgRecv();
-    tgLastId = 0; // only surface messages from now on
-    // First call establishes the current high-water mark.
-    (async () => {
-      try {
-        const r = await fetch("/bac-tg-recv/0.json?_=" + Date.now());
-        const j = await r.json();
-        tgLastId = j.lastId || 0;
-      } catch {}
-    })();
-    tgPollTimer = setInterval(async () => {
-      if (!activeChar || activeChar.id !== c.id) { stopTgRecv(); return; }
-      try {
-        const r = await fetch("/bac-tg-recv/" + tgLastId + ".json?_=" + Date.now());
-        const j = await r.json();
-        if (j.messages && j.messages.length) {
-          for (const m of j.messages) {
-            tgLastId = Math.max(tgLastId, m.id);
-            if (activeChar && activeChar.id === c.id) {
-              addMsg("bot", m.text);
-              c.bubble = { text: m.text.replace(/\n+/g, " ").slice(0, 80), until: performance.now() + 8000 };
-            }
-          }
-        } else if (typeof j.lastId === "number") {
-          tgLastId = Math.max(tgLastId, j.lastId === 0 ? tgLastId : tgLastId);
-        }
-      } catch (err) {
-        // network hiccup; keep trying quietly
-      }
-    }, 1500);
-  }
-  function stopTgRecv() {
-    if (tgPollTimer) { clearInterval(tgPollTimer); tgPollTimer = null; }
-  }
-
-  // ---------- MultiagentBot orchestration (client) ----------
-  function maCleanup() {
-    maKids = []; maBox = null; maParent = null;
-  }
-
-  async function runMultiagent(c, request) {
-    if (c.busy) return;
-    c.busy = true;
-    maCleanup();
-    maParent = c;
-    sendBtn.disabled = true;
-    const seen = new Set();
-
-    // Spawn two subagent sprites flanking the orchestrator.
-    // Place PM and Dev on the SAME lower row (children below the parent),
-    // PM on the left and Dev on the right, well separated so bubbles don't overlap.
-    const pm = {
-      id: "_ma_pm", role: "pm", name: "PM", label: "PM", baby: true,
-      color: "#5b8def", x: c.x, y: c.y, tx: arena().x - (W <= 900 ? 65 : 105), ty: arena().y - 55,
-      bob: Math.random() * 6, dir: 1, active: false, hover: false, bubble: null,
-    };
-    const dev = {
-      id: "_ma_dev", role: "dev", name: "Dev", label: "Dev", baby: true,
-      color: "#34c98a", x: c.x, y: c.y, tx: arena().x + (W <= 900 ? 65 : 105), ty: arena().y - 55,
-      bob: Math.random() * 6, dir: -1, active: false, hover: false, bubble: null,
-    };
-    maKids = [pm, dev];
-
-    function bubbleFor(actor, text, ms) {
-      const target = actor === "pm" ? pm : actor === "dev" ? dev : c;
-      // Subagents (PM/Dev) keep their bubble up much longer so the audience
-      // can read what they did before the next action; orchestrator is shorter.
-      const dur = ms != null ? ms : (actor === "pm" || actor === "dev") ? 12000 : 7000;
-      const until = dur === Infinity ? Infinity : performance.now() + dur;
-      target.bubble = { text: text.replace(/\n+/g, " ").slice(0, 90), until };
-    }
-    const wait = (ms) => new Promise((rs) => setTimeout(rs, ms));
-
-    let jobId = null;
-    try {
-      const bodyStr = JSON.stringify({ agent: "multiagent", messages: [{ role: "user", content: request }] });
-      const b64 = btoa(unescape(encodeURIComponent(bodyStr)))
-        .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-      const sr = await fetch("/bac-ma-start/" + b64 + ".json?_=" + Date.now());
-      jobId = (await sr.json()).jobId;
-    } catch (e) { console.warn("[ma] start failed", e && e.message); }
-    if (!jobId) {
-      addMsg("bot", "Couldn't start the team. Try again?");
-      sendBtn.disabled = false; c.busy = false; maCleanup(); return;
-    }
-
-    const isActive = () => activeChar && activeChar.id === c.id;
-    let done = false;
-    for (let i = 0; i < 120 && !done; i++) {
-      await new Promise((rs) => setTimeout(rs, 700));
-      if (!isActive()) { maCleanup(); c.busy = false; return; }
-      let pj;
-      try {
-        const pr = await fetch("/bac-ma-poll/" + jobId + ".json?_=" + Date.now());
-        pj = await pr.json();
-      } catch { continue; }
-      if (pj.status === "unknown") break;
-      for (const st of (pj.stages || [])) {
-        const key = st.stage + "|" + st.text;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        await handleStage(st);
-      }
-      if (pj.status === "done") done = true;
-    }
-
-    async function handleStage(st) {
-      if (!isActive()) return;
-      emit("activity", { agent: st.actor || "Team", text: st.text });
-      switch (st.stage) {
-        case "spawn":
-          // Orchestrator: short, intuitive "what's happening" line
-          bubbleFor("orchestrator", "Got it - spinning up my team 👥");
-          // Let the parent speak alone first, then PM jumps in after a beat
-          await wait(2200);
-          break;
-        case "pm-start":
-          pm.active = true; pm.label = "PM • planning…";
-          bubbleFor("pm", "On it - figuring out the plan 🧠");
-          break;
-        case "pm-done":
-          pm.active = false; pm.label = "PM ✓";
-          addMsg("bot headline", "🧠 PM plan");
-          addMsg("bot", st.plan || st.text);
-          bubbleFor("pm", "Plan's ready - handing it to Dev ✅");
-          // hold so the audience can read the plan before the handoff
-          await wait(5000);
-          break;
-        case "handoff":
-          // box flies from PM to Dev, then STAYS in Dev's hands while it works
-          maBox = { x: pm.x, y: pm.y - 10, tx: dev.x, ty: dev.y - 10, hold: "dev" };
-          bubbleFor("dev", "Thanks! Picking this up 📦");
-          await wait(1800);
-          break;
-        case "dev-start":
-          dev.active = true; dev.label = "Dev • building…";
-          // keep this bubble up for the WHOLE build (same lifetime as the box in
-          // Dev's hands) - stays until dev-done replaces it
-          bubbleFor("dev", "Writing the code now ⌨️", Infinity);
-          break;
-        case "dev-done":
-          dev.active = false; dev.label = st.prUrl ? "Dev ✓ PR #" + st.prNum : "Dev ✗";
-          maBox = null;   // box is "delivered" - remove only now that the PR is open
-          addMsg("bot", st.text);
-          if (st.prUrl) {
-            const a = document.createElement("a");
-            a.href = st.prUrl; a.target = "_blank"; a.textContent = "🔗 View PR #" + st.prNum;
-            a.className = "msg bot"; a.style.color = "#5b8def"; a.style.textDecoration = "underline";
-            msgsEl.appendChild(a); msgsEl.scrollTop = msgsEl.scrollHeight;
-          }
-          bubbleFor("dev", st.prUrl ? "Done! Opened a PR 🚀" : "Hit a snag 😅");
-          // hold so the audience can see what Dev shipped before the merge
-          await wait(5000);
-          break;
-        case "merge":
-          // kids slide back into the orchestrator, then vanish
-          pm.tx = c.x; pm.ty = c.y; dev.tx = c.x; dev.ty = c.y;
-          bubbleFor("orchestrator", "All wrapped up - nice work team 🎉");
-          addMsg("bot headline", "🎉 " + st.text);
-          setTimeout(() => { if (maParent === c) maCleanup(); }, 2500);
-          break;
-        case "error":
-        case "pm-fallback":
-          if (st.text) addMsg("bot", st.text);
-          break;
-      }
-    }
-
-    c.busy = false;
-    if (isActive()) { sendBtn.disabled = false; inputEl.focus(); }
-    if (!done && isActive()) addMsg("bot", "팀 작업이 시간 안에 완료되지 않았습니다. Gateway와 GitHub 연결을 확인해주세요.");
-  }
+  let arxivCronStarted=false,arxivChecking=false,lastPapers='';
+  function startArxivCron(){if(arxivCronStarted)return;arxivCronStarted=true;setInterval(async()=>{if(document.hidden||arxivChecking)return;arxivChecking=true;try{const data=await window.DemoAPI.request('/bac-arxiv/top3.json');const signature=JSON.stringify(data.papers.map(p=>p.link));if(lastPapers&&signature!==lastPapers){const c=chars.find(c=>c.id==='arxiv');c.bubble={text:'논문 목록 변경',until:performance.now()+5000};emit('activity',{agent:c.name,text:'논문 목록 변경'});}lastPapers=signature;}catch{}finally{arxivChecking=false;}},60000);}
 
   // ---------- Boot ----------
+  let loopStarted=false;
   async function boot() {
     buildBackground();
     try {
-      const r = await fetch("/api/agents");
-      const j = await r.json();
-      AGENTS = j.agents || [];
+      const j = await window.DemoAPI.request("/api/agents");
+      if (!Array.isArray(j.agents) || !j.agents.length) throw Error();
+      AGENTS = j.agents;
+      document.getElementById('stage-error').hidden=true;
     } catch {
-      AGENTS = [];
+      document.getElementById('stage-error').hidden=false;
+      if(!loopStarted){loopStarted=true;requestAnimationFrame(loop);}
+      return;
     }
     buildChars();
     emit("ready", chars);
-    requestAnimationFrame(loop);
+    if(!loopStarted){loopStarted=true;requestAnimationFrame(loop);}
   }
 
-  // ArxivBot "cron job": every minute, refresh the Top-3 papers and pop a
-  // self-initiated bubble (no click needed). Says "Updated!" ONLY when the
-  // Top 3 actually changed since last scan; otherwise shows a "checked" note,
-  // so the cron is visibly alive without faking an update.
-  // ArxivBot click: read the cron-cached Top 3 announcement and show it fast.
-  // No LLM call - the cron already did the work; this is just a file/cache read.
-  async function showArxivTop3(c) {
-    const typing = addMsg("bot", "논문 조회 중...");
-    try {
-      const r = await fetch("/bac-arxiv/top3.json?_=" + Date.now());
-      const j = await r.json();
-      emit("result", { agent: c.name, text: j.text });
-      emit("activity", { agent: c.name, text: j.source === "live" ? "arXiv RSS에서 논문 수신" : "저장된 참고 논문 표시" });
-      // tiny beat so it reads as "fetching", then swap in the real cards
-      setTimeout(() => {
-        if (j.text) typing.innerHTML = renderInline((j.source === "live" ? "" : "참고 논문 모음 - 최신 피드가 비어 있거나 연결되지 않았습니다.\n\n") + j.text);
-        else typing.textContent = "논문이 없습니다.";
-        msgsEl.scrollTop = msgsEl.scrollHeight;
-      }, 450);
-    } catch {
-      typing.textContent = "논문 조회 실패. 다시 시도하세요.";
-    }
-  }
-
-  // ArxivBot "cron job": kicks in the first time the user clicks ArxivBot, then
-  // re-scans arXiv every minute and surfaces a fresh Top 3 (rotating through
-  // today's agentic papers). Guarded so repeated clicks don't stack timers.
-  let arxivCronStarted = false;
-  function startArxivCron() {
-    if (arxivCronStarted) return;
-    const arx = chars.find((c) => c.live === "arxiv");
-    if (!arx) return;
-    arxivCronStarted = true;
-    let previous = "";
-    const ping = async () => {
-      try {
-        const r = await fetch("/bac-arxiv/top3.json?_=" + Date.now()), j = await r.json();
-        const signature = (j.papers || []).map(p => p.link).sort().join("|");
-        const changed = previous && signature !== previous; previous = signature;
-        emit("activity", { agent: arx.name, text: j.source === "live" ? "예약 확인: arXiv 피드" : "예약 확인: 참고 논문 모음" });
-        if (changed && activeChar?.id !== arx.id) arx.bubble = { text: "새 논문", until: performance.now() + 5000 };
-      } catch { emit("activity", { agent: arx.name, text: "예약 확인 실패" }); }
-    };
-    setInterval(ping, 60000); // re-scan once a minute from first click onward
-  }
   function reflow() {
     resize();
     chars.forEach((c,i) => { const h=home(i); c.x=c.tx=h.x; c.y=c.ty=h.y; });
-    const a = arena(), offset = mobileView() ? 65 : 105;
+    const a = arena(), offset = Math.min(mobileView() ? 65 : 105,(a.right-a.left)/4);
     for (const k of maKids) { k.tx = a.x + (k.role === "pm" ? -offset : offset); k.ty = a.y - 55; }
     buildBackground();
   }
@@ -902,11 +497,12 @@
   window.BacDemo = {
     getAgents: () => chars, getActive: () => activeChar,
     openAgent(id) { const c=chars.find(a=>a.id===id); if(c && c!==activeChar) openChat(c); },
-    runTurn, addMsg, closeChat,
+    runTurn, addMsg, closeChat, sync, refreshSystem:()=>{const c=chars.find(c=>c.id==='sysmon');if(c)showSystem(c);}, refreshPapers:()=>{const c=chars.find(c=>c.id==='arxiv');if(c)showPapers(c);}, resumeTeam(id){const c=chars.find(c=>c.id==='multiagent');if(c&&!c.busy)runMultiagent(c,'',id);},
     motion(value) { motionPaused=value; },
     isPaused: () => motionPaused,
     busy(id,value) { const c=chars.find(a=>a.id===id); if(c)c.busy=value; },
     bubble(id,text) { const c=chars.find(a=>a.id===id); if(c) c.bubble={text,until:performance.now()+6000}; }
   };
+  document.getElementById('stage-retry').onclick=boot;
   boot();
 })();

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b1018">
   <title>Agentic AI Demo</title>
-  <link rel="stylesheet" href="showcase.css?v=docked">
+  <link rel="stylesheet" href="showcase.css?v=workflow">
 </head>
 <body>
 <div id="wrap">
@@ -18,8 +18,9 @@
     <button class="mission" data-mission="browser"><span class="mission-icon green">↗</span><strong>브라우저 탐색</strong></button>
     <button class="mission" data-mission="team"><span class="mission-icon amber">⌘</span><strong>에이전트 협업</strong></button>
     <button class="mission" data-mission="research"><span class="mission-icon violet">▤</span><strong>논문 검색</strong></button>
-    <button class="mission" data-mission="mail"><span class="mission-icon rose">✉</span><strong>받은편지함</strong></button>
+    <button class="mission" data-mission="mail"><span class="mission-icon rose">✉</span><strong>메시지</strong></button>
   </aside>
+  <div id="stage-error" role="alert" hidden>서버에 연결할 수 없습니다. <button id="stage-retry" class="quiet-button">다시 연결</button></div>
   <section class="stage-label" aria-label="에이전트 수"><span id="agent-count" class="stage-count"></span></section>
   <nav id="agent-roster" aria-label="에이전트 선택"></nav>
   <footer class="activity-dock"><div class="activity-title"><span class="tiny-dot"></span><strong>실행 기록</strong></div><ol id="activity-list" aria-live="polite"></ol><button id="activity-clear" class="icon-button" aria-label="실행 기록 지우기">↺</button></footer>
@@ -27,9 +28,10 @@
   <section id="chat" aria-label="에이전트 대화" aria-hidden="true" inert>
     <div id="chat-head"><div id="chat-dot"></div><div><div id="chat-name">Agent</div><div id="chat-role"></div></div><button id="chat-close" class="icon-button" aria-label="대화 닫기">×</button></div>
     <div id="agent-actions"></div>
+    <div id="chat-connection" role="status" hidden></div>
     <div id="msgs" role="log" aria-live="polite"></div>
     <div class="share-strip"><span>결과 공유</span><button id="share-telegram">↗ Telegram</button><button id="share-mail">✉ 이메일</button></div>
-    <form id="inbar"><input id="input" aria-label="메시지" placeholder="메시지 입력" autocomplete="off"><button id="send" type="submit" aria-label="메시지 보내기">↑</button></form>
+    <form id="inbar"><input id="input" aria-label="메시지" placeholder="메시지 입력" maxlength="2000" autocomplete="off"><button id="send" type="submit" aria-label="메시지 보내기">↑</button></form>
   </section>
 </div>
 <dialog id="settings-dialog" class="dialog settings-dialog" aria-labelledby="settings-title">
@@ -50,12 +52,18 @@
   <div class="dialog-head"><h2 id="browser-title">브라우저 탐색</h2><button class="icon-button" data-close="browser-dialog" aria-label="탐색 창 닫기">×</button></div>
   <form id="browser-form"><label class="sr-only" for="browser-source">검색 소스</label><select id="browser-source"><option value="naver">Naver</option><option value="google">Google</option><option value="daum">Daum</option></select><label class="sr-only" for="browser-query">검색어</label><input id="browser-query" placeholder="검색어" value="NVIDIA DGX Spark" maxlength="240" required><button class="primary-button" id="browser-run">탐색 시작 ↗</button></form>
   <div class="browser-layout"><div class="browser-window"><div class="browser-chrome"><div class="traffic-lights"><i></i><i></i><i></i></div><span id="browser-address">about:blank</span><span id="browser-live">CDP</span></div><div class="browser-viewport"><div id="browser-empty">탐색 대기</div><img id="browser-frame" alt="실제 Chromium 탐색 화면" hidden></div></div><aside class="browser-trace"><ol id="browser-steps"></ol><p id="browser-note" role="status">탐색 준비</p></aside></div>
-  <div id="browser-results" class="browser-results"></div><div class="dialog-actions"><button id="browser-to-chat" class="quiet-button" disabled>요약 요청</button><button id="browser-share" class="quiet-button" disabled>결과 공유 ↗</button></div>
+  <div id="browser-results" class="browser-results"></div><section id="browser-summary" hidden><h3>요약</h3><div id="browser-summary-text" role="status"></div></section><div class="dialog-actions"><button id="browser-summary-run" class="quiet-button" disabled>요약 요청</button><button id="browser-share" class="quiet-button" disabled>결과 공유 ↗</button></div>
 </dialog>
-<dialog id="inbox-dialog" class="dialog" aria-labelledby="inbox-title"><div class="dialog-head"><h2 id="inbox-title">받은편지함</h2><button class="icon-button" data-close="inbox-dialog" aria-label="받은편지함 닫기">×</button></div><div class="dialog-actions"><button id="inbox-refresh" class="quiet-button">새로고침 ↺</button><button id="mail-new" class="primary-button">메일 쓰기 ✉</button></div><p id="inbox-status" role="status"></p><div id="inbox-messages"></div></dialog>
+<dialog id="inbox-dialog" class="dialog" aria-labelledby="inbox-title">
+  <div class="dialog-head"><h2 id="inbox-title">메시지</h2><button class="icon-button" data-close="inbox-dialog" aria-label="메시지 창 닫기">×</button></div>
+  <div class="tab-bar" role="tablist" aria-label="메시지 채널"><button id="message-tab-mail" role="tab" aria-controls="message-mail" aria-selected="true" data-message-tab="mail">AgentMail</button><button id="message-tab-telegram" role="tab" aria-controls="message-telegram" aria-selected="false" tabindex="-1" data-message-tab="telegram">Telegram</button></div>
+  <section id="message-mail" role="tabpanel" aria-labelledby="message-tab-mail"><div class="dialog-actions"><button id="inbox-refresh" class="quiet-button">새로고침 ↺</button><button id="mail-new" class="primary-button">메일 쓰기 ✉</button></div><p id="inbox-status" role="status"></p><div id="inbox-messages"></div></section>
+  <section id="message-telegram" role="tabpanel" aria-labelledby="message-tab-telegram" hidden><div class="dialog-actions"><button id="telegram-settings" class="quiet-button">연결 설정</button></div><p id="telegram-status" role="status"></p><div id="telegram-messages" role="log" aria-live="polite"></div><form id="telegram-chat-form"><input id="telegram-text" aria-label="Telegram 메시지" placeholder="메시지 입력" maxlength="4000" required><button id="telegram-send" class="primary-button">보내기</button></form></section>
+</dialog>
 <dialog id="share-dialog" class="dialog" aria-labelledby="share-title"><div class="dialog-head"><h2 id="share-title">결과 공유</h2><button class="icon-button" data-close="share-dialog" aria-label="공유 창 닫기">×</button></div><form id="share-form"><label for="share-channel">보낼 곳</label><select id="share-channel"><option value="telegram">Telegram</option><option value="agentmail">이메일 · AgentMail</option></select><div id="share-email-fields" hidden><label for="share-to">받는 사람</label><input id="share-to" type="email" autocomplete="email" placeholder="you@example.com"><label for="share-subject">제목</label><input id="share-subject" value="Agentic AI Demo 결과" maxlength="200"></div><label for="share-text">보낼 내용</label><textarea id="share-text" rows="8" maxlength="20000" required></textarea><p id="share-destination" class="field-note"></p><p id="share-status" class="form-status" role="status"></p><div class="dialog-actions"><button class="primary-button" type="submit" id="share-send">보내기 ↗</button></div></form></dialog>
 <div id="toast" role="status" hidden></div>
-<script src="game.js?v=docked"></script>
-<script src="showcase.js?v=docked"></script>
+<script src="runtime.js?v=workflow"></script>
+<script src="game.js?v=workflow"></script>
+<script src="showcase.js?v=workflow"></script>
 </body>
 </html>

@@ -78,7 +78,7 @@ class BrowserJobs {
         job.note = "링크를 추출하지 못했습니다. 실제 화면에서 검색 결과 또는 사이트의 접근 제한을 확인해주세요.";
       }
       await page.evaluate(() => window.scrollTo(0, 0)); await capture();
-      job.status = "done"; this.event(job, "done", "브라우저 탐색 완료");
+      this.event(job, "done", "브라우저 탐색 완료");
     } catch (error) {
       job.status = "error";
       job.error = job.stage === "connect"
@@ -87,8 +87,10 @@ class BrowserJobs {
       this.event(job, "error", job.error);
     } finally {
       // A worker tab only. Disconnect the CDP client, leaving Chromium running.
-      if (page && browser?.contexts().some(c => c.pages().length > 1)) await page.close().catch(() => {});
+      if (page) await page.close().catch(() => {});
       if (browser) await browser.close().catch(() => {});
+      if (job.status === "running") job.status = "done";
+      this.busy = false;
     }
   }
 }

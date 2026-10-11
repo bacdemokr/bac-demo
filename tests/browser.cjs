@@ -13,7 +13,7 @@ async function freePort(){const s=http.createServer();await new Promise(r=>s.lis
   const executable=process.env.TEST_CHROMIUM_EXECUTABLE||(process.platform==='darwin'?'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome':'/usr/bin/chromium');
   if(!fs.existsSync(executable))throw new Error('Set TEST_CHROMIUM_EXECUTABLE to your Chrome/Chromium executable.');
   const port=await freePort(),cdpPort=await freePort();
-  const server=spawn(process.execPath,['app/server.js'],{cwd:path.resolve(__dirname,'..'),env:{...process.env,PORT:String(port),GATEWAY_URL:'http://127.0.0.1:1',GATEWAY_TOKEN:'',TG_BOT_TOKEN:'',TG_CHAT_ID:'',AGENTMAIL_API_KEY:'',AGENTMAIL_INBOX_ID:''},stdio:['ignore','pipe','pipe']});
+  const server=spawn(process.execPath,['app/server.js'],{cwd:path.resolve(__dirname,'..'),env:{...process.env,PORT:String(port),GATEWAY_URL:'http://127.0.0.1:1',GATEWAY_TOKEN:'',TG_BOT_TOKEN:'',TG_CHAT_ID:'',AGENTMAIL_API_KEY:'',AGENTMAIL_INBOX_ID:'',GITHUB_TOKEN:'',BROWSER_CDP_URL:'http://127.0.0.1:1'},stdio:['ignore','pipe','pipe']});
   let logs='';server.stdout.on('data',d=>logs+=d);server.stderr.on('data',d=>logs+=d);
   let chrome,fixture,fixtureApi;
   try{
@@ -22,8 +22,9 @@ async function freePort(){const s=http.createServer();await new Promise(r=>s.lis
     chrome=await chromium.launch({executablePath:executable,headless:true,args:[`--remote-debugging-port=${cdpPort}`,'--remote-debugging-address=127.0.0.1']});
     const context=await chrome.newContext({viewport:{width:1440,height:900}}),page=await context.newPage(),errors=[];
     page.on('pageerror',e=>errors.push(e.message));
-    await page.goto(base);await page.waitForFunction(()=>window.BacDemo?.getAgents().length===7);await wait(300);
-    assert.equal(await page.locator('#agent-roster button').count(),7);
+    await page.route('**/api/showcase/status',r=>r.fulfill({json:{gateway:{reachable:true,configured:true},browser:{connected:false},team:{configured:false},telegram:{},agentmail:{}}}));
+    await page.goto(base);await page.waitForFunction(()=>window.BacDemo?.getAgents().length===4);await wait(300);
+    assert.equal(await page.locator('#agent-roster button').count(),4);
     if(process.env.SCREENSHOT_DIR){fs.mkdirSync(process.env.SCREENSHOT_DIR,{recursive:true});await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'bac-demo-preview.png')});}
     const visibleAgents=()=>page.evaluate(()=>{
       const canvas=document.querySelector('#game'),bounds=canvas.getBoundingClientRect(),compact=innerWidth<=900;
@@ -33,10 +34,10 @@ async function freePort(){const s=http.createServer();await new Promise(r=>s.lis
         visible:c.x-40*scale>=0&&c.x+60*scale<=bounds.width&&c.y-54*scale>=0&&c.y+65*scale<=bounds.height&&document.elementFromPoint(bounds.left+c.x,bounds.top+c.y)===canvas
       }));
     });
-    await page.locator('[data-agent=scout]').click();await wait(550);
+    await page.locator('[data-agent=github]').click();await wait(550);
     assert((await visibleAgents()).every(a=>a.visible),'All desktop agents should remain visible beside the chat panel.');
-    await page.locator('#input').fill('draft');await page.locator('[data-agent=scout]').click();assert.equal(await page.locator('#input').inputValue(),'draft');
-    await page.locator('#chat-head').click();assert.equal(await page.evaluate(()=>window.BacDemo.getActive()?.id),'scout');
+    await page.locator('#input').fill('draft');await page.locator('[data-agent=github]').click();assert.equal(await page.locator('#input').inputValue(),'draft');
+    await page.locator('#chat-head').click();assert.equal(await page.evaluate(()=>window.BacDemo.getActive()?.id),'github');
     if(process.env.SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'bac-demo-chat-preview.png')});
     for(const size of [{width:1100,height:900},{width:934,height:700}]){
       await page.setViewportSize(size);await wait(550);
@@ -46,12 +47,12 @@ async function freePort(){const s=http.createServer();await new Promise(r=>s.lis
     assert.equal(await page.locator('#chat').getAttribute('inert'),'');
     await page.setViewportSize({width:1440,height:900});await wait(450);
     const clickAgent=async id=>{const point=await page.evaluate(id=>{const c=window.BacDemo.getAgents().find(a=>a.id===id),r=document.querySelector('#game').getBoundingClientRect();return {x:c.x+r.left,y:c.y+r.top};},id);await page.mouse.click(point.x,point.y);await wait(450);};
-    await clickAgent('scout');assert.equal(await page.evaluate(()=>window.BacDemo.getActive()?.id),'scout');
+    await clickAgent('github');assert.equal(await page.evaluate(()=>window.BacDemo.getActive()?.id),'github');
     await clickAgent('github');assert.equal(await page.locator('#chat-name').textContent(),'GitHubAgent');
     await page.keyboard.press('Escape');await wait(450);assert.equal(await page.evaluate(()=>window.BacDemo.getActive()),null);
-    await page.locator('[data-agent=scout]').click();await page.locator('#agent-actions button').click();
-    await page.locator('#browser-query').fill('draft query');assert.equal(await page.evaluate(()=>window.BacDemo.getActive()?.id),'scout');
-    await page.locator('[data-close=browser-dialog]').click();await page.locator('#chat-close').click();await wait(450);
+    await page.locator('[data-agent=github]').click();await page.evaluate(()=>window.BacShowcase.settings('tools'));
+    assert.equal(await page.evaluate(()=>window.BacDemo.getActive()?.id),'github');
+    await page.locator('[data-close=settings-dialog]').click();await page.locator('#chat-close').click();await wait(450);
     console.log('Panel passed: visible agents at desktop/tablet widths, canvas selection, agent switching, draft retention, outside click, Escape, inert closed panel, nested dialog.');
     await page.locator('[data-mission=browser]').click();assert(await page.locator('#browser-dialog').isVisible());
     await page.locator('#browser-run').click();await page.waitForFunction(()=>document.querySelector('#browser-note').textContent.includes('Chromium에 연결할 수 없습니다'));
@@ -59,7 +60,7 @@ async function freePort(){const s=http.createServer();await new Promise(r=>s.lis
     await page.locator('[data-close=browser-dialog]').click();
     let telegramConfigured=false,mailConfigured=false,writes=[];
     const tg={configured:true,connected:true,bot:'fixture_bot',chatId:'12345'},mail={configured:true,connected:true,inboxId:'fixture@agentmail.to'};
-    await page.route('**/api/showcase/status',r=>r.fulfill({json:{gateway:{reachable:false,configured:false},browser:{connected:false},telegram:telegramConfigured?tg:{},agentmail:mailConfigured?mail:{}}}));
+    await page.route('**/api/showcase/status',r=>r.fulfill({json:{gateway:{reachable:true,configured:true},browser:{connected:false},team:{configured:false},telegram:telegramConfigured?tg:{},agentmail:mailConfigured?mail:{}}}));
     await page.route('**/api/integrations/telegram',async r=>{
       if(r.request().method()==='POST'){const body=r.request().postDataJSON();telegramConfigured=!body.disconnect;writes.push('telegram configure');await r.fulfill({json:telegramConfigured?tg:{configured:false,connected:false}});}
       else await r.fulfill({json:telegramConfigured?tg:{}});
@@ -78,15 +79,38 @@ async function freePort(){const s=http.createServer();await new Promise(r=>s.lis
     let sends=0;await page.route('**/api/integrations/agentmail/send',r=>{sends++;assert.deepEqual(r.request().postDataJSON(),{to:'you@example.com',subject:'Agentic AI Demo 결과',text:'Reviewed fixture email.'});return r.fulfill({json:{ok:true,messageId:'fixture-message'}});});
     assert.equal(sends,0);await page.locator('#share-send').click();await page.waitForFunction(()=>document.querySelector('#share-status').textContent.includes('fixture-message'));assert.equal(sends,1);
     await page.locator('[data-close=share-dialog]').click();await page.locator('[data-close=inbox-dialog]').click();
-    await page.locator('[data-agent=telegram]').click();await page.locator('#input').fill('fixture chat');let tgSends=0;
+    await page.route('**/api/integrations/telegram/messages?*',r=>r.fulfill({json:{messages:[{id:1,from:'Fixture',text:'<img src=x onerror=alert(1)>'}],lastId:1}}));
+    await page.locator('[data-mission=mail]').click();await page.locator('#message-tab-telegram').click();
+    await page.locator('#telegram-text').fill('fixture chat');let tgSends=0;
     await page.route('**/api/integrations/telegram/send',r=>{assert.equal(r.request().method(),'POST');tgSends++;return r.fulfill({json:{ok:true,messageId:1}});});
-    await page.locator('#send').click();await page.waitForFunction(()=>!document.querySelector('#send').disabled);assert.equal(tgSends,1);await page.locator('#chat-close').click();
+    await page.locator('#telegram-send').click();await page.waitForFunction(()=>!document.querySelector('#telegram-send').disabled);assert.equal(tgSends,1);assert.equal(await page.locator('#telegram-messages img').count(),0);
+    await page.locator('[data-close=inbox-dialog]').click();
+    let taskReleased=false,starts=0;
+    await page.route('**/api/tasks',r=>{assert.equal(r.request().method(),'POST');starts++;return r.fulfill({status:202,json:{jobId:'fixture-task'}});});
+    await page.route('**/api/tasks/fixture-task',r=>r.fulfill({json:taskReleased?{status:'done',reply:'Background reply retained.',bubble:'Completed'}:{status:'pending'}}));
+    await page.locator('[data-agent=github]').click();await page.locator('#input').fill('retain my result');await page.locator('#send').click();
+    await page.waitForFunction(()=>window.BacDemo.getAgents().find(c=>c.id==='github').busy);
+    await page.locator('#chat-close').click();await page.locator('[data-agent=sysmon]').click();taskReleased=true;
+    await page.waitForFunction(()=>!window.BacDemo.getAgents().find(c=>c.id==='github').busy);
+    assert(!(await page.locator('#msgs').textContent()).includes('Background reply retained.'));
+    await page.locator('[data-agent=github]').click();assert((await page.locator('#msgs').textContent()).includes('Background reply retained.'));assert.equal(starts,1);
+    await page.locator('#input').fill('preserved draft');await page.locator('[data-agent=sysmon]').click();await page.locator('[data-agent=github]').click();assert.equal(await page.locator('#input').inputValue(),'preserved draft');
+    await page.locator('#chat-close').click();console.log('Tasks passed: one POST start, late result stays with its agent, polling survives closing, per-agent drafts and history survive switching.');
+    let teamReleased=false,teamStarts=0;
+    await page.route('**/api/showcase/status',r=>r.fulfill({json:{gateway:{reachable:true,configured:true},browser:{connected:false},team:{configured:true,repository:'fixture/repo'},telegram:tg,agentmail:mail}}));
+    await page.evaluate(()=>window.BacShowcase.settings('tools'));await page.waitForFunction(()=>window.BacShowcase.canRun('multiagent'));await page.locator('[data-close=settings-dialog]').click();
+    await page.route('**/api/team/jobs',r=>{teamStarts++;assert.equal(r.request().method(),'POST');assert(r.request().postDataJSON().requestId);return r.fulfill({status:202,json:{jobId:'fixture-team'}});});
+    await page.route('**/api/team/jobs/fixture-team',r=>r.fulfill({json:{status:teamReleased?'done':'running',stages:teamReleased?[{stage:'pm-start',actor:'pm',text:'계획 작성'},{stage:'pm-done',actor:'pm',text:'계획 완료',plan:'Fixture PM plan.'},{stage:'handoff',actor:'pm',text:'전달'},{stage:'dev-start',actor:'dev',text:'구현'},{stage:'dev-done',actor:'dev',text:'Fixture PR created.',prUrl:'https://example.com/fixture-pr'}]:[{stage:'pm-start',actor:'pm',text:'계획 작성'}]}}));
+    await page.locator('[data-mission=team]').click();await page.locator('#input').fill('Fixture feature');await page.locator('#send').click();await page.waitForFunction(()=>window.BacDemo.getAgents().find(c=>c.id==='multiagent').teamJobId);
+    await page.locator('#chat-close').click();await page.locator('[data-agent=github]').click();teamReleased=true;await page.waitForFunction(()=>!window.BacDemo.getAgents().find(c=>c.id==='multiagent').busy);
+    assert(!(await page.locator('#msgs').textContent()).includes('Fixture PR created.'));await page.locator('[data-agent=multiagent]').click();assert((await page.locator('#msgs').textContent()).includes('Fixture PM plan.'));assert.equal(await page.locator('#msgs a[href="https://example.com/fixture-pr"]').count(),1);assert.equal(teamStarts,1);await page.locator('#chat-close').click();
+    console.log('Team passed: POST request identity, PM/Dev stages and PR result persist when panel is closed or switched.');
     await page.locator('#motion-toggle').click();assert.equal(await page.evaluate(()=>window.BacDemo.isPaused()),true);
     await page.setViewportSize({width:390,height:844});await wait(250);assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
-    await page.reload();await page.waitForFunction(()=>window.BacDemo?.getAgents().length===7);
+    await page.reload();await page.waitForFunction(()=>window.BacDemo?.getAgents().length===4);
     await page.locator('#activity-clear').scrollIntoViewIfNeeded();assert(await page.evaluate(()=>window.scrollY>0));await page.evaluate(()=>scrollTo(0,0));await wait(250);
     if(process.env.SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'bac-demo-mobile.png'),fullPage:true});
-    await page.locator('[data-agent=scout]').click();await wait(550);
+    await page.locator('[data-agent=github]').click();await wait(550);
     assert((await visibleAgents()).every(a=>a.visible),'Mobile agents should remain visible above the bottom sheet.');
     assert(await page.locator('#input').isVisible());
     if(process.env.SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'bac-demo-mobile-chat.png')});
@@ -123,9 +147,10 @@ async function freePort(){const s=http.createServer();await new Promise(r=>s.lis
     assert(await page.locator('#browser-frame').evaluate(img=>img.naturalWidth===1280));
     await wait(400);
     if(process.env.SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'bac-demo-browser-preview.png')});
-    await page.locator('#browser-to-chat').click();
-    assert(await page.locator('#chat').isVisible());await page.waitForFunction(()=>document.querySelector('#msgs').textContent.includes('브라우저 작업이 만료'));
-    assert.deepEqual(errors,[]);console.log('Viewer passed: HTTP job polling, actual screenshot route, execution trace, source links, expired summary job is reported.');
+    await page.locator('#browser-summary-run').click();
+    await page.waitForFunction(()=>document.querySelector('#browser-summary-text').textContent.includes('Background reply retained.'));
+    assert(await page.locator('#browser-dialog').isVisible());assert.equal(await page.evaluate(()=>window.BacDemo.getActive()),null);
+    assert.deepEqual(errors,[]);console.log('Viewer passed: real screenshot and trace, inline summary stays in the browser workflow.');
 
   }finally{
     if(fixtureApi){fixtureApi.closeAllConnections();await new Promise(r=>fixtureApi.close(r));}if(chrome)await chrome.close();if(fixture){fixture.closeAllConnections();await new Promise(r=>fixture.close(r));}server.kill();await new Promise(r=>{if(server.exitCode!==null)r();else server.once('exit',r);});

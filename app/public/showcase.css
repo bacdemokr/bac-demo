@@ -237,3 +237,20 @@ body{height:auto;overflow:visible}
 
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
 }
+#chat-connection{display:flex;align-items:center;gap:8px;padding:10px 20px;color:#d8c7a1;background:#57462330;border-block:1px solid #57462370;font-size:11px;flex-shrink:0}
+#chat-connection[hidden]{display:none}
+#chat-connection span{flex:1;line-height:1.5}
+#chat-connection button{font-size:10px;white-space:nowrap;padding:6px}
+#chat-head,#agent-actions,.share-strip,#inbar{flex-shrink:0}
+.msg.error{color:#ffc5b8;border-color:#795147}
+.agent-button.working i{animation:breathe 1.4s ease-in-out infinite;box-shadow:0 0 12px var(--agent-color)}
+#browser-summary{border:1px solid #31463b;border-radius:10px;padding:16px;margin-top:16px}
+#browser-summary h3{font-size:13px;margin-bottom:10px}
+#browser-summary-text{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:1.8}
+#telegram-messages{max-height:350px;min-height:90px;overflow:auto;margin-block:16px;overscroll-behavior:contain}
+#telegram-chat-form{display:flex;gap:8px}
+#telegram-text{flex:1}
+#telegram-status{font-size:12px;color:var(--muted);line-height:1.7}
+#stage-error{position:absolute;top:110px;left:50%;transform:translateX(-50%);border:1px solid #785247;background:#1d2228;padding:15px;border-radius:10px;z-index:3;font-size:12px;width:max-content;max-width:90%}
+#stage-error[hidden]{display:none}
+@media(max-width:900px){#wrap.chat-open #agent-roster{display:grid;grid-template-columns:1fr 1fr;gap:4px;overflow:visible}#wrap.chat-open .agent-button{min-width:0;padding:7px 9px}#wrap.chat-open #agent-roster small{display:none}}
