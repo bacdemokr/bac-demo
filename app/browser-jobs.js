@@ -1,12 +1,25 @@
 "use strict";
 const { randomUUID } = require("crypto");
 const { Problem } = require("./integrations");
-const {planResearch,mergeResults,chooseDocuments,rankDocuments,summarizeResearch,extractDocument}=require("./browser-research");
+const {planResearch,mergeResults,chooseDocuments,rankDocuments,summarizeResearch,extractDocument,documentIssue}=require("./browser-research");
+
+function newsUrl(provider,query,period){
+  const naver=provider==='naver';
+  const url=new URL(naver?'https://search.naver.com/search.naver':'https://search.daum.net/search');
+  url.searchParams.set(naver?'where':'w','news');url.searchParams.set(naver?'query':'q',query);
+  if(naver)url.searchParams.set('sort','1');
+  if(period){
+    const start=period.start.replaceAll('-',''),end=period.end.replaceAll('-','');
+    if(naver){url.searchParams.set('pd','3');url.searchParams.set('ds',period.start.replaceAll('-','.'));url.searchParams.set('de',period.end.replaceAll('-','.'));url.searchParams.set('nso',`so:dd,p:from${start}to${end}`);}
+    else{url.searchParams.set('period','u');url.searchParams.set('sd',start+'000000');url.searchParams.set('ed',end+'235959');}
+  }
+  return url.href;
+}
 
 const SOURCES = {
-  naver: { name: "Naver", newsUrl:q=>`https://search.naver.com/search.naver?where=news&sort=1&query=${encodeURIComponent(q)}`, url: q => `https://search.naver.com/search.naver?query=${encodeURIComponent(q)}` },
+  naver: { name: "Naver", newsUrl:(q,period)=>newsUrl('naver',q,period), url: q => `https://search.naver.com/search.naver?query=${encodeURIComponent(q)}` },
   google: { name: "Google", newsUrl:q=>`https://www.google.com/search?tbm=nws&q=${encodeURIComponent(q)}`, url: q => `https://www.google.com/search?q=${encodeURIComponent(q)}` },
-  daum: { name: "Daum", newsUrl:q=>`https://search.daum.net/search?w=news&q=${encodeURIComponent(q)}`, url: q => `https://search.daum.net/search?w=tot&q=${encodeURIComponent(q)}` },
+  daum: { name: "Daum", newsUrl:(q,period)=>newsUrl('daum',q,period), url: q => `https://search.daum.net/search?w=tot&q=${encodeURIComponent(q)}` },
 };
 
 // Executed in the page. Prefer actual result titles over navigation or ads.
@@ -83,7 +96,7 @@ class BrowserJobs {
       const groups=[];
       for(const query of job.plan.queries)for(const key of keys){
         if(Date.now()-started>150000)break;
-        const source=this.sources[key],target=(job.mode==='news'&&source.newsUrl?source.newsUrl:source.url)(query);
+        const source=this.sources[key],target=(job.mode==='news'&&source.newsUrl?source.newsUrl:source.url)(query,job.plan.timeRange);
         const group={source:source.name,query,url:target,results:[]};groups.push(group);job.searches=groups;
         this.event(job,"search",`${source.name}: ${query}`);
         try{
@@ -97,7 +110,7 @@ class BrowserJobs {
       if(!job.results.length)throw new Problem('검색 결과를 얻지 못했습니다. 실제 화면과 검색원별 오류를 확인해주세요.',502);
       let selected;
       this.event(job,'selecting','질문에 맞는 원문 후보 선정');
-      try{selected=await rankDocuments(job.results,job.query,job.mode,ask,5);}catch{selected=chooseDocuments(job.results,job.query,5);(job.warnings||=[]).push('AI 후보 선정을 완료하지 못해 관련성·출처 다양성 기준을 사용했습니다.');}
+      try{selected=await rankDocuments(job.results,job.query,job.mode,ask,5,job.plan);}catch{selected=chooseDocuments(job.results,job.query,5,job.plan);(job.warnings||=[]).push('AI 후보 선정을 완료하지 못해 관련성·출처 다양성 기준을 사용했습니다.');}
       this.event(job,"select",`원문 후보 ${selected.length}개 선정 · 읽을 수 있는 본문 최대 3개 확인`);
       for(const [index,result] of selected.entries()){
         if(job.documents.filter(d=>d.status==='read').length>=3||Date.now()-started>210000)break;
@@ -108,13 +121,15 @@ class BrowserJobs {
           await page.evaluate(()=>window.scrollTo(0,700));await page.waitForTimeout(250);await capture();
           const contentFrame=page.frames().find(f=>f.name()==='mainFrame')||page;
           Object.assign(doc,await contentFrame.evaluate(extractDocument),{url:page.url(),readAt:new Date().toISOString()});
+          if(doc.status==='read'){const issue=documentIssue(doc,job.plan);if(issue){doc.status='excluded';doc.error=issue;this.event(job,'exclude',`[${doc.id}] ${issue}`);continue;}}
           if(doc.status!=='read'){doc.error='원문을 읽을 수 없습니다. 접근 제한이나 본문 길이를 확인해주세요.';this.event(job,"read-error",`[${doc.id}] 원문 읽기 실패`);}else this.event(job,"read",`[${doc.id}] 본문 확인${doc.published?' · 게시일 '+doc.published:''}`);
         }catch{doc.status='unavailable';doc.error='페이지 접근 또는 본문 읽기 실패';this.event(job,"read-error",`[${doc.id}] 원문을 읽지 못해 근거에서 제외`);}
       }
       const count=job.documents.filter(d=>d.status==='read').length;
-      if(ask&&count){this.event(job,"synthesize","읽은 원문을 대조하고 출처를 붙여 답변 작성");try{job.summary=await summarizeResearch(job.query,job.mode,job.documents,ask);}catch(e){job.summaryError=e.message;this.event(job,"summary-error","AI 정리를 완료하지 못했습니다. 읽은 근거는 아래에서 확인할 수 있습니다.");}}
-      else job.summaryError=count?'AI 실행 서비스에 자동 연결하지 못했습니다. 아래에는 실제 읽은 원문을 표시합니다.':'읽을 수 있는 원문이 없어 답변을 만들지 않았습니다.';
-      job.note=`검색원 ${groups.length}회 확인 · 후보 ${job.results.length}개 · 원문 ${count}/${job.documents.length}개 읽음`;
+      if(ask&&count){this.event(job,"synthesize","읽은 원문을 대조하고 출처를 붙여 답변 작성");try{job.summary=await summarizeResearch(job.query,job.mode,job.documents,ask,job.plan);}catch(e){job.summaryError=e.message;this.event(job,"summary-error","AI 정리를 완료하지 못했습니다. 읽은 근거는 아래에서 확인할 수 있습니다.");}}
+      else job.summaryError=count?'AI 실행 서비스에 자동 연결하지 못했습니다. 아래에는 실제 읽은 원문을 표시합니다.':job.plan.timeRange?'요청한 주제와 기간을 충족하는 원문을 확인하지 못했습니다. 기간이나 검색어를 바꿔 다시 조사해주세요.':'질문에 맞는 원문을 확인하지 못해 답변을 만들지 않았습니다.';
+      const excluded=job.documents.filter(d=>d.status==='excluded').length;
+      job.note=`검색 ${groups.length}회 · 후보 ${job.results.length}개 · 확인한 근거 ${count}개${excluded?' · 주제·기간 불일치 '+excluded+'개 제외':''}`;
       this.event(job,"done","조사 완료");
     }catch(error){job.status='error';job.error=job.stage==='connect'?'Chromium에 연결할 수 없습니다. 설치 안내에 따라 CDP 브라우저를 실행해주세요.':error instanceof Problem?error.message:'조사를 완료하지 못했습니다. 실행 기록과 네트워크 상태를 확인해주세요.';this.event(job,"error",job.error);}
     finally{if(page)await page.close().catch(()=>{});if(browser)await browser.close().catch(()=>{});if(job.status==='running')job.status='done';this.busy=false;}

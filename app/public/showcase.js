@@ -107,13 +107,17 @@
     $('browser-address').textContent=job.url;$('browser-live').textContent=job.status==='running'?'진행 중':job.status==='done'?'완료':'오류';
     if(job.screenshot&&$('browser-frame').dataset.revision!==String(job.revision)){$('browser-frame').src=job.screenshot;$('browser-frame').dataset.revision=String(job.revision);$('browser-frame').hidden=false;$('browser-empty').hidden=true;}
     $('browser-note').textContent=job.error||job.note||(job.status==='done'?`${job.results.length}개 후보`:'조사 중...');
-    if(job.plan){$('browser-plan').hidden=false;$('browser-plan').textContent=(job.plan.method==='ai'?'질문을 나눈 검색어: ':'사용한 검색어: ')+job.plan.queries.join(' / ');}
+    if(job.plan){
+      const root=$('browser-plan');root.hidden=false;root.replaceChildren();
+      job.plan.queries.forEach(query=>{const chip=document.createElement('span');chip.className='query-chip';chip.textContent=query;root.append(chip);});
+      if(job.plan.timeRange){const period=document.createElement('small');period.textContent=`기간: ${job.plan.timeRange.start} - ${job.plan.timeRange.end}`;root.append(period);}
+    }
     const signature=JSON.stringify(job.documents||[]);if(signature!==documentSignature){documentSignature=signature;renderDocuments(job);}
   }
   function validLink(url){try{const u=new URL(url);return ['http:','https:'].includes(u.protocol)?u.href:null;}catch{return null;}}
   function renderDocuments(job){
     $('browser-documents').replaceChildren();$('browser-evidence').hidden=!job.documents?.length;
-    (job.documents||[]).forEach(d=>{const card=document.createElement('article'),title=document.createElement('a'),state=document.createElement('small'),body=document.createElement('p');card.className='evidence-card';title.textContent=`[${d.id}] ${d.title}`;const href=validLink(d.url);if(href){title.href=href;title.target='_blank';title.rel='noopener noreferrer';}state.textContent=(href?new URL(href).hostname+' · ':'')+(d.status==='read'?`본문 읽음${d.published?' · 게시일 '+d.published:' · 게시일 미확인'}`:d.status==='reading'?'읽는 중...':'본문 읽기 실패');state.classList.toggle('error',d.status==='unavailable');body.textContent=d.status==='read'?d.excerpt||'':d.error||'';card.append(title,state,body);$('browser-documents').append(card);});
+    (job.documents||[]).forEach(d=>{const card=document.createElement('article'),title=document.createElement('a'),state=document.createElement('small'),body=document.createElement('p');card.className='evidence-card';card.classList.toggle('excluded',d.status==='excluded');title.textContent=`[${d.id}] ${d.title}`;const href=validLink(d.url);if(href){title.href=href;title.target='_blank';title.rel='noopener noreferrer';}state.textContent=(href?new URL(href).hostname+' · ':'')+(d.status==='read'?`본문 읽음${d.published?' · 게시일 '+d.published:' · 게시일 미확인'}`:d.status==='reading'?'읽는 중...':d.status==='excluded'?'근거에서 제외':'본문 읽기 실패');state.classList.toggle('error',d.status==='unavailable'||d.status==='excluded');body.textContent=d.status==='read'?d.excerpt||'':d.error||'';card.append(title,state,body);$('browser-documents').append(card);});
   }
   function renderAnswer(text,job){
     const root=$('browser-summary-text');root.replaceChildren();
@@ -131,7 +135,7 @@
     for(const warning of new Set([...(job.warnings||[]),...(job.searches||[]).filter(s=>s.error).map(s=>s.source+': '+s.error)])){const li=document.createElement('li');li.textContent=warning;$('browser-limitations').append(li);}
     if($('browser-dialog').open)$('browser-summary').scrollIntoView({block:'nearest'});
   }
-  function browserText(job){const docs=(job.documents||[]).filter(d=>d.status==='read');return `조사 요청: ${job.query}\n\n`+(browserSummary?browserSummary+'\n\n':'')+(docs.length?'읽은 근거:\n'+docs.map(d=>`[${d.id}] ${d.title}\n${d.url}${d.published?'\n게시일: '+d.published:''}${!browserSummary&&d.excerpt?'\n원문 발췌: '+d.excerpt:''}`).join('\n\n'):job.results.map((r,i)=>`${i+1}. ${r.title}\n${r.url}`).join('\n\n'));}
+  function browserText(job){const docs=(job.documents||[]).filter(d=>d.status==='read');return `조사 요청: ${job.query}\n\n`+(browserSummary?browserSummary+'\n\n':'')+(docs.length?'읽은 근거:\n'+docs.map(d=>`[${d.id}] ${d.title}\n${d.url}${d.published?'\n게시일: '+d.published:''}${!browserSummary&&d.excerpt?'\n원문 발췌: '+d.excerpt:''}`).join('\n\n'):job.mode==='search'?job.results.map((r,i)=>`${i+1}. ${r.title}\n${r.url}`).join('\n\n'):job.summaryError||'질문에 맞는 근거를 확인하지 못했습니다.');}
   function updateBrowserButtons(){const usable=browserJob?.status==='done'&&browserJob.results.length>0,read=browserJob?.mode==='search'||browserJob?.documents?.some(d=>d.status==='read');$('browser-summary-run').disabled=!usable||!read||summaryRunning;$('browser-summary-run').textContent=browserJob?.summary?'결과 다시 정리':'AI로 정리';$('browser-share').disabled=!usable;}
   function renderResults(job){
     $('browser-results').replaceChildren();job.results.forEach(r=>{const href=validLink(r.url);if(!href)return;const link=document.createElement('a'),host=document.createElement('small');link.className='result-card';link.textContent=r.title;link.href=href;host.textContent=new URL(href).hostname+(r.searchSources?.length?' · '+r.searchSources.join(', '):'');link.append(host);link.target='_blank';link.rel='noopener noreferrer';$('browser-results').append(link);});$('browser-candidates').hidden=!job.results.length;$('browser-candidates').querySelector('summary').textContent=`검색 후보 (${job.results.length})`;$('browser-candidates').open=job.mode==='search';updateBrowserButtons();

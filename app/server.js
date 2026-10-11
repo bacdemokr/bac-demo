@@ -340,7 +340,7 @@ async function chatWorker(parsed) {
     const evidence=showcase.browser.evidence(parsed.searchJobId);
     if(job.mode!=='search'&&!evidence.documents.some(d=>d.status==='read'))throw new Problem('읽을 수 있는 원문이 없어 답변을 만들지 않았습니다.',409);
     if(job.mode!=='search'){
-      const summary=await summarizeResearch(evidence.request,evidence.mode,evidence.documents,async(system,user,timeout)=>(await callGateway({url:GATEWAY,token:TOKEN,agent:routeAgent('bac'),model:process.env.BROWSER_MODEL||DEMO_MODEL,timeout,messages:[{role:'system',content:system},{role:'user',content:user}]})).reply);
+      const summary=await summarizeResearch(evidence.request,evidence.mode,evidence.documents,async(system,user,timeout)=>(await callGateway({url:GATEWAY,token:TOKEN,agent:routeAgent('bac'),model:process.env.BROWSER_MODEL||DEMO_MODEL,timeout,messages:[{role:'system',content:system},{role:'user',content:user}]})).reply,evidence.plan);
       return {reply:summary.answer,limitations:summary.limitations};
     }
     sys.push({role:'system',content:JSON.stringify(evidence)});
