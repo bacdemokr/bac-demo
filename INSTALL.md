@@ -11,7 +11,7 @@ npm install
 cp .env.example .env
 ```
 
-The configured Gateway agent model is used by default. Set `DEMO_MODEL` only to override it with a model available on your gateway. `BROWSER_MODEL` optionally overrides it for browser summaries. Set `GH_OWNER` to your authenticated GitHub account and `GH_REPO` to your demo repository (`bac-demo`). The target needs a `main` branch. Generated files go under `demo-features/`; GitHub creates that directory with the first file.
+The configured Gateway agent model is used by default. Set `DEMO_MODEL` only to override it with a model available on your gateway. `BROWSER_MODEL` optionally overrides it for browser summaries. `GH_OWNER` and `GH_REPO` set the startup GitHub target; the runtime GitHub tab can change it. The target needs an initial commit and a default branch. PRs use the verified default branch. Generated files go under `demo-features/`; GitHub creates that directory with the first file.
 
 ## OpenClaw
 
@@ -19,9 +19,18 @@ For OpenClaw 2026.9.4, configure `agents.entries` with `bac`, `git`, `pm`, and `
 
 Enable `gateway.http.endpoints.chatCompletions.enabled`. The server routes through `openclaw/<agent-id>` with agent-scoped session keys. Older OpenClaw versions may use `agents.list`; use the configuration schema of your running gateway.
 
-At startup the app discovers the same-user local OpenClaw listener and its JSON5 configuration, or reads `~/.openclaw/openclaw.json`. `OPENCLAW_CONFIG_PATH`, `OPENCLAW_STATE_DIR` and `OPENCLAW_PROFILE` can select another installation. It uses the token and actual agent IDs automatically; no UI token entry or connection button is needed. Only the discovered config path is remembered in the ignored `app/.openclaw-path`, without copying credentials or modifying OpenClaw. For a remote Gateway set `GATEWAY_URL` and `GATEWAY_TOKEN` in the server environment. `GATEWAY_AGENT`, `GITHUB_AGENT`, `PM_AGENT` and `DEV_AGENT` override routing. Legacy `app/.gw_token` remains supported. The default agent handles general questions and text generation when dedicated agents are absent; GitHub AI actions require a configured `git` agent or `GITHUB_AGENT`. Keep any legacy token files and `app/.gh_token` mode 600.
+At startup the app discovers the same-user local OpenClaw listener and its JSON5 configuration, or reads `~/.openclaw/openclaw.json`. `OPENCLAW_CONFIG_PATH`, `OPENCLAW_STATE_DIR` and `OPENCLAW_PROFILE` can select another installation. It uses the token and actual agent IDs automatically; no UI token entry or connection button is needed. Only the discovered config path is remembered in the ignored `app/.openclaw-path`, without copying credentials or modifying OpenClaw. For a remote Gateway set `GATEWAY_URL` and `GATEWAY_TOKEN` in the server environment. `GATEWAY_AGENT`, `GITHUB_AGENT`, `PM_AGENT` and `DEV_AGENT` override routing. Legacy `app/.gw_token` remains supported. The default agent handles general questions and text generation when dedicated agents are absent. GitHub tool actions need a configured `git` agent or `GITHUB_AGENT`; without one, a verified app GitHub connection supports read-only repository metadata and AI explanation. Keep any legacy token files and `app/.gh_token` mode 600.
 
 For GitHub MCP, pull `ghcr.io/github/github-mcp-server:latest`, then configure an OpenClaw `mcp.servers` entry whose command is the absolute path to `scripts/github-mcp.sh`. This script reads `app/.gh_token` and passes it to Docker. Validate the gateway config and reload it.
+
+## GitHub connection: runtime or startup file
+
+- **Runtime:** Open **연결 설정 → GitHub**, enter a PAT and `owner/repository`, and click **GitHub 연결**. The app verifies the account and repository using GET requests. The verified connection immediately supplies repository metadata and collaboration PR credentials, without restarting. A failed replacement preserves the working connection. Tokens remain in server memory; the input is cleared after success or closing settings, and credentials are never returned in status, stored in browser storage, or passed to the model.
+- **Startup:** Put the PAT in `app/.gh_token` (mode 600), or set `GITHUB_TOKEN` in `.env` and run with `node --env-file=.env app/server.js`. Set `GH_OWNER` and `GH_REPO` for the startup target. File credentials take precedence over environment credentials and are verified at startup. Runtime entries override the active connection without editing either file. Restarting removes the runtime override and reloads startup settings. Disconnecting clears the app connection until a reconnect or restart; it leaves token files intact.
+
+Use a fine-grained PAT restricted to the demo repository, with **Contents: Read and write** and **Pull requests: Read and write** for collaboration PRs. Connection verification confirms account and repository reads; it does not create a test branch or PR to prove the token's write permissions. A repository with no write access, an archived repository, or a disabled repository cannot start a collaboration PR. Connection changes are blocked while a collaboration job runs, and its requests retain the credentials, repository, and default branch selected at job start.
+
+The runtime GitHub tab configures the app's REST client. It does not change OpenClaw's MCP configuration or replace credentials in an already running MCP process. MCP tool actions continue using the separately configured OpenClaw integration; `scripts/github-mcp.sh` keeps its existing token-file behavior.
 
 ## Persistent services
 

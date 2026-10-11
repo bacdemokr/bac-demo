@@ -1,6 +1,7 @@
 "use strict";
 const { Problem, TelegramBridge, AgentMailBridge } = require("./integrations");
 const { BrowserJobs } = require("./browser-jobs");
+const {GitHubConnection}=require('./github-connection');
 
 function respond(res, code, body) {
   res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
@@ -27,7 +28,7 @@ async function readJSON(req) {
   } catch { throw new Problem("올바른 JSON 내용을 보내주세요."); }
 }
 
-function createShowcase({ telegramToken = "", gateway = "", gatewayToken = "", gatewayInfo = () => ({}), fetcher = fetch, browser, browserAsk, capabilities = () => ({}) } = {}) {
+function createShowcase({ telegramToken = "", gateway = "", gatewayToken = "", gatewayInfo = () => ({}), fetcher = fetch, github = new GitHubConnection({fetcher}), browser, browserAsk, capabilities = () => ({}) } = {}) {
   const telegram = new TelegramBridge({ token: telegramToken, chatId: process.env.TG_CHAT_ID, fetcher });
   const mail = new AgentMailBridge({ apiKey: process.env.AGENTMAIL_API_KEY, inboxId: process.env.AGENTMAIL_INBOX_ID, fetcher });
   browser ||= new BrowserJobs({ endpoint: process.env.BROWSER_CDP_URL || "http://127.0.0.1:9222", ask:browserAsk });
@@ -44,8 +45,10 @@ function createShowcase({ telegramToken = "", gateway = "", gatewayToken = "", g
           probe(resolve(gateway) + "/health", resolve(gatewayToken) ? { Authorization: `Bearer ${resolve(gatewayToken)}` } : {}),
           probe(browser.endpoint + "/json/version"),
         ]);
-        respond(res, 200, { gateway: { ...gatewayInfo(), reachable: gatewayReachable, configured: !!resolve(gatewayToken), url:resolve(gateway) }, browser: { connected: browserConnected }, telegram: telegram.public(), agentmail: mail.public(), ...capabilities() });
-      } else if (p === "/api/integrations/telegram" && req.method === "GET") respond(res, 200, telegram.public());
+        respond(res, 200, { gateway: { ...gatewayInfo(), reachable: gatewayReachable, configured: !!resolve(gatewayToken), url:resolve(gateway) }, browser: { connected: browserConnected }, github:github.public(), telegram: telegram.public(), agentmail: mail.public(), ...capabilities() });
+      } else if (p === '/api/integrations/github' && req.method === 'GET') respond(res,200,github.public());
+      else if (p === '/api/integrations/github' && req.method === 'POST') respond(res,200,await github.configure(await readJSON(req)));
+      else if (p === "/api/integrations/telegram" && req.method === "GET") respond(res, 200, telegram.public());
       else if (p === "/api/integrations/telegram" && req.method === "POST") respond(res, 200, await telegram.configure(await readJSON(req)));
       else if (p === "/api/integrations/telegram/send" && req.method === "POST") respond(res, 200, await telegram.send((await readJSON(req)).text));
       else if (p === "/api/integrations/telegram/messages" && req.method === "GET") respond(res, 200, telegram.receive(Number(url.searchParams.get("since")) || 0));
@@ -65,6 +68,6 @@ function createShowcase({ telegramToken = "", gateway = "", gatewayToken = "", g
     } catch (error) { respond(res, error.status || 500, { error: error instanceof Problem ? error.message : "작업을 완료하지 못했습니다. 다시 시도해주세요." }); }
     return true;
   }
-  return { handle, browser, telegram, mail, start() { telegram.start(); mail.start(); } };
+  return { handle, browser, github, telegram, mail, start() { github.start(); telegram.start(); mail.start(); } };
 }
 module.exports = { createShowcase, readJSON };

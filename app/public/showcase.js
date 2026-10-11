@@ -7,7 +7,8 @@
   let inboxLoading=false, telegramLoading=false, telegramSending=false, telegramCursor=0, telegramTimer;
   let shareSending=false;
   const roles={sysmon:'시스템 상태 · 로컬 도구',github:'GitHub 작업 · OpenClaw MCP',multiagent:'PM / Dev 협업 · GitHub',arxiv:'논문 리서치 · arXiv RSS'};
-  const canRun=id=>!!(status.gateway?.reachable&&status.gateway?.configured&&(id!=='github'||status.gateway?.agents?.git!==false)&&(id!=='multiagent'||status.team?.configured));
+  const canRun=id=>!!(status.gateway?.reachable&&status.gateway?.configured&&(id!=='github'||status.gateway?.agents?.git!==false||status.github?.connected)&&(id!=='multiagent'||status.team?.configured));
+  const githubRole=()=>status.gateway?.agents?.git===false?'저장소 조회 · GitHub API':roles.github;
   const toast=text=>{$('toast').textContent=text;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,4500);};
   function activity(agent,text){
     const item=document.createElement('li'),time=document.createElement('time'),name=document.createElement('strong'),content=document.createElement('p');
@@ -33,7 +34,7 @@
   window.addEventListener('bac:result',e=>{if(e.detail.text)results.set(e.detail.agent,e.detail.text);syncChat();});
   window.addEventListener('bac:state',syncChat);
   window.addEventListener('bac:agent',e=>{
-    const a=e.detail;$('agent-actions').replaceChildren();if(!a){syncChat();return;}$('chat-role').textContent=roles[a.id]||a.role;
+    const a=e.detail;$('agent-actions').replaceChildren();if(!a){syncChat();return;}$('chat-role').textContent=a.id==='github'?githubRole():roles[a.id]||a.role;
     const button=(text,fn,ai=false)=>{const b=document.createElement('button');b.textContent=text;b.onclick=fn;if(ai)b.dataset.ai='true';$('agent-actions').append(b);};
     if(a.id==='sysmon')button('상태 새로고침',()=>demo().refreshSystem());
     if(a.id==='github')button('저장소 조회',()=>demo().runTurn(a,'내 GitHub 저장소 목록을 조회해줘.'),true);
@@ -59,18 +60,21 @@
   $('settings-open').onclick=()=>{demo().closeChat({restoreFocus:false});openSettings();};bindTabs('data-tab',selectTab);
   function showStatus(id,text,error=false){$(id).textContent=text;$(id).classList.toggle('error',error);}
   function renderConnections(){
-    const tg=status.telegram||{},mail=status.agentmail||{},gw=status.gateway||{};
+    const tg=status.telegram||{},mail=status.agentmail||{},gh=status.github||{},gw=status.gateway||{};
     if(document.activeElement!==$('tg-chat')&&!$('tg-chat').value)$('tg-chat').value=tg.chatId||'';
     if(document.activeElement!==$('mail-inbox')&&!$('mail-inbox').value)$('mail-inbox').value=mail.inboxId||'';
+    if(document.activeElement!==$('gh-repository')&&!$('gh-repository').value&&gh.owner&&gh.repo)$('gh-repository').value=gh.owner+'/'+gh.repo;
     if(!$('telegram-form').dataset.pending)showStatus('tg-status',tg.connected?`@${tg.bot} · Chat ${tg.chatId}${tg.error?' · 수신 연결 확인 필요':''}`:tg.error||'연결 전',!!tg.error);
     if(!$('mail-connect-form').dataset.pending)showStatus('mail-status',mail.connected?`연결됨 · ${mail.inboxId}`:mail.error||'연결 전',!!mail.error);
+    if(!$('github-form').dataset.pending){const source={runtime:'화면 입력',file:'파일 설정',environment:'환경 설정'}[gh.source]||'';showStatus('gh-status',gh.connected?`연결됨 · ${gh.owner}/${gh.repo} · ${source}${gh.canWrite?'':' · 저장소 쓰기 불가'}`:gh.error|| (gh.configured?'연결 확인 중...':'연결 전'),!!gh.error);}
     $('tg-disconnect').disabled=!!$('telegram-form').dataset.pending||!tg.configured;$('mail-disconnect').disabled=!!$('mail-connect-form').dataset.pending||!mail.configured;
+    $('gh-disconnect').disabled=!!$('github-form').dataset.pending||!gh.configured;
     const runtime=canRun('web-summary');$('runtime-status').classList.toggle('connected',runtime);$('runtime-status').lastChild.textContent=runtime?' AI 연결됨':' AI 서비스 확인 필요';
     $('tool-status-list').replaceChildren();
-    const rows=[['AI 실행 서비스',runtime?'자동 연결됨':gw.error||'실행 상태 확인 필요'],['브라우저 · CDP',status.browser?.connected?'연결됨':'브라우저 실행 필요'],['GitHub MCP',gw.agents?.git===false?'설정된 에이전트 없음':'OpenClaw의 git 에이전트에서 설정'],['PM / Dev 협업',status.team?.configured?`설정됨 · ${status.team.repository}`:'OpenClaw 및 GitHub 토큰 필요'],['Telegram',tg.connected?'연결됨':'연결 전'],['AgentMail',mail.connected?'연결됨':'연결 전']];
+    const rows=[['AI 실행 서비스',runtime?'자동 연결됨':gw.error||'실행 상태 확인 필요'],['브라우저 · CDP',status.browser?.connected?'연결됨':'브라우저 실행 필요'],['GitHub API',gh.connected?`${gh.owner}/${gh.repo}`:gh.error||'연결 전'],['GitHub MCP',gw.agents?.git===false?'설정된 에이전트 없음':'OpenClaw의 git 에이전트에서 설정'],['PM / Dev 협업',status.team?.configured?`설정됨 · ${status.team.repository}`:'OpenClaw 및 GitHub 토큰 필요'],['Telegram',tg.connected?'연결됨':'연결 전'],['AgentMail',mail.connected?'연결됨':'연결 전']];
     rows.forEach(([name,state])=>{const row=document.createElement('div'),label=document.createElement('span'),value=document.createElement('small');row.className='tool-row';label.textContent=name;value.textContent=state;row.append(label,value);$('tool-status-list').append(row);});
     showStatus('telegram-status',tg.connected?`@${tg.bot} · Chat ${tg.chatId}${tg.error?' · 수신 연결 확인 필요':''}`:'Telegram 연결 후 메시지를 주고받을 수 있습니다.',!!tg.error);
-    $('telegram-send').disabled=telegramSending||!tg.connected;syncShare();syncChat();demo()?.sync();updateBrowserButtons();
+    $('telegram-send').disabled=telegramSending||!tg.connected;if(demo()?.getActive()?.id==='github')$('chat-role').textContent=githubRole();syncShare();syncChat();demo()?.sync();updateBrowserButtons();
     const job=status.team?.activeJobId;if(job&&!resumed.has(job)&&demo()?.getAgents().length){resumed.add(job);demo().resumeTeam(job);}
   }
   async function refreshStatus(){
@@ -82,16 +86,18 @@
   async function configure(formId,statusId,path,body,keyId){
     const form=$(formId);if(form.dataset.pending)return;form.dataset.pending='true';++connectionRevision;
     const controls=[...form.querySelectorAll('input,button')];controls.forEach(b=>b.disabled=true);showStatus(statusId,'연결 확인 중...');
-    try{const result=await api(path,body);const type=path.split('/').pop();status[type]=result;$(keyId).value='';if(type==='telegram'){telegramCursor=0;$('telegram-messages').replaceChildren();}else $('inbox-messages').replaceChildren();activity(type,body.disconnect?'연결 해제':'연결 완료');}
+    try{const result=await api(path,body);const type=path.split('/').pop();status[type]=result;$(keyId).value='';if(type==='telegram'){telegramCursor=0;$('telegram-messages').replaceChildren();}else if(type==='agentmail')$('inbox-messages').replaceChildren();else if(type==='github')status.team={...status.team,configured:!!status.gateway?.configured&&result.connected&&result.canWrite,repository:result.owner+'/'+result.repo};activity(type,body.disconnect?'연결 해제':'연결 완료');}
     catch(e){showStatus(statusId,e.message,true);return;}
-    finally{delete form.dataset.pending;controls.forEach(b=>b.disabled=false);$('tg-disconnect').disabled=!status.telegram?.configured;$('mail-disconnect').disabled=!status.agentmail?.configured;}
+    finally{delete form.dataset.pending;controls.forEach(b=>b.disabled=false);$('tg-disconnect').disabled=!status.telegram?.configured;$('mail-disconnect').disabled=!status.agentmail?.configured;$('gh-disconnect').disabled=!status.github?.configured;}
     renderConnections();if($('inbox-dialog').open){if($('message-telegram').hidden)loadInbox();else loadTelegram();}
   }
   $('telegram-form').onsubmit=e=>{e.preventDefault();configure('telegram-form','tg-status','/api/integrations/telegram',{token:$('tg-token').value.trim(),chatId:$('tg-chat').value.trim()},'tg-token');};
   $('mail-connect-form').onsubmit=e=>{e.preventDefault();configure('mail-connect-form','mail-status','/api/integrations/agentmail',{apiKey:$('mail-key').value.trim(),inboxId:$('mail-inbox').value.trim()},'mail-key');};
+  $('github-form').onsubmit=e=>{e.preventDefault();const [owner,repo]=$('gh-repository').value.trim().split('/');configure('github-form','gh-status','/api/integrations/github',{token:$('gh-token').value.trim(),owner,repo},'gh-token');};
   $('tg-disconnect').onclick=()=>configure('telegram-form','tg-status','/api/integrations/telegram',{disconnect:true},'tg-token');
   $('mail-disconnect').onclick=()=>configure('mail-connect-form','mail-status','/api/integrations/agentmail',{disconnect:true},'mail-key');
-  $('settings-dialog').addEventListener('close',()=>{$('tg-token').value='';$('mail-key').value='';});
+  $('gh-disconnect').onclick=()=>configure('github-form','gh-status','/api/integrations/github',{disconnect:true},'gh-token');
+  $('settings-dialog').addEventListener('close',()=>{$('tg-token').value='';$('mail-key').value='';$('gh-token').value='';});
   const examples={news:'최근 일주일 NVIDIA와 로컬 AI 관련 주요 발표를 정리해줘. 발표 날짜와 출처도 알려줘.',compare:'DGX Spark와 Jetson을 비교해줘. 사용 목적, 실행할 수 있는 AI 작업, 선택할 때 고려할 점을 공식 자료로 확인해줘.',research:'로컬에서 AI 에이전트를 실행하는 실제 사례를 조사해줘. 사용한 도구와 활용 방식, 출처를 함께 정리해줘.'};
   function syncBrowserMode(){
     const mode=$('browser-mode').value,food=mode==='restaurants';

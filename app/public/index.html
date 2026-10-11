@@ -36,7 +36,7 @@
 </div>
 <dialog id="settings-dialog" class="dialog settings-dialog" aria-labelledby="settings-title">
   <div class="dialog-head"><h2 id="settings-title">연결 설정</h2><button class="icon-button" data-close="settings-dialog" aria-label="설정 닫기">×</button></div>
-  <div class="tab-bar" role="tablist" aria-label="연결 종류"><button role="tab" id="tab-telegram" aria-controls="panel-telegram" aria-selected="true" data-tab="telegram">Telegram</button><button role="tab" id="tab-agentmail" aria-controls="panel-agentmail" aria-selected="false" tabindex="-1" data-tab="agentmail">AgentMail</button><button role="tab" id="tab-tools" aria-controls="panel-tools" aria-selected="false" tabindex="-1" data-tab="tools">도구 상태</button></div>
+  <div class="tab-bar" role="tablist" aria-label="연결 종류"><button role="tab" id="tab-telegram" aria-controls="panel-telegram" aria-selected="true" data-tab="telegram">Telegram</button><button role="tab" id="tab-agentmail" aria-controls="panel-agentmail" aria-selected="false" tabindex="-1" data-tab="agentmail">AgentMail</button><button role="tab" id="tab-github" aria-controls="panel-github" aria-selected="false" tabindex="-1" data-tab="github">GitHub</button><button role="tab" id="tab-tools" aria-controls="panel-tools" aria-selected="false" tabindex="-1" data-tab="tools">도구 상태</button></div>
   <section id="panel-telegram" role="tabpanel" aria-labelledby="tab-telegram">
     <p class="dialog-copy">OpenClaw 채널과 별도 봇을 사용하세요.</p>
     <form id="telegram-form"><label for="tg-token">Bot token <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer">BotFather ↗</a></label><input id="tg-token" type="password" autocomplete="off" spellcheck="false" placeholder="123456789:..." required><label for="tg-chat">Chat ID <a href="https://t.me/userinfobot" target="_blank" rel="noopener noreferrer">Chat ID 확인 ↗</a></label><input id="tg-chat" autocomplete="off" spellcheck="false" placeholder="개인 또는 그룹의 숫자 ID" required><p class="field-note">연결 전 봇에게 /start를 보내세요.</p><div class="dialog-actions"><button type="button" class="quiet-button" id="tg-disconnect">연결 해제</button><button type="submit" class="primary-button">Telegram 연결</button></div></form><p id="tg-status" class="form-status" role="status"></p>
@@ -45,7 +45,10 @@
     <p class="dialog-copy"><a href="https://console.agentmail.to" target="_blank" rel="noopener noreferrer">AgentMail Console ↗</a>에서 API key와 Inbox ID를 확인하세요.</p>
     <form id="mail-connect-form"><label for="mail-key">API key</label><input id="mail-key" type="password" autocomplete="off" spellcheck="false" placeholder="AgentMail API key" required><label for="mail-inbox">Inbox ID</label><input id="mail-inbox" autocomplete="off" spellcheck="false" placeholder="my-agent@agentmail.to" required><div class="dialog-actions"><button type="button" class="quiet-button" id="mail-disconnect">연결 해제</button><button type="submit" class="primary-button">AgentMail 연결</button></div></form><p id="mail-status" class="form-status" role="status"></p>
   </section>
-  <section id="panel-tools" role="tabpanel" aria-labelledby="tab-tools" hidden><p class="dialog-copy">GitHub MCP는 OpenClaw의 git 에이전트에 설정하세요.</p><div id="tool-status-list"></div><a href="https://github.com/bacdemokr/bac-demo/blob/main/INSTALL.md" target="_blank" rel="noopener noreferrer" class="docs-link">설정 안내 ↗</a></section>
+  <section id="panel-github" role="tabpanel" aria-labelledby="tab-github" hidden>
+    <form id="github-form"><label for="gh-token">GitHub token <a href="https://github.com/settings/personal-access-tokens/new?name=Agentic-AI-Demo&amp;expires_in=30&amp;contents=write&amp;pull_requests=write" target="_blank" rel="noopener noreferrer">토큰 발급 ↗</a></label><input id="gh-token" type="password" autocomplete="off" spellcheck="false" maxlength="512" placeholder="GitHub 개인 액세스 토큰" required><label for="gh-repository">저장소</label><input id="gh-repository" autocomplete="off" spellcheck="false" maxlength="140" pattern="[A-Za-z0-9-]+/[A-Za-z0-9_.-]+" placeholder="owner/repository" required><p class="field-note">PR 생성에는 Contents와 Pull requests 쓰기 권한이 필요합니다. 연결은 계정과 저장소를 조회해 확인합니다.</p><div class="dialog-actions"><button type="button" class="quiet-button" id="gh-disconnect">연결 해제</button><button type="submit" class="primary-button">GitHub 연결</button></div></form><p id="gh-status" class="form-status" role="status"></p><p class="field-note">파일 설정도 앱 시작 시 자동으로 읽습니다. GitHub MCP는 OpenClaw의 연결 설정을 사용합니다.</p>
+  </section>
+  <section id="panel-tools" role="tabpanel" aria-labelledby="tab-tools" hidden><div id="tool-status-list"></div><a href="https://github.com/bacdemokr/bac-demo/blob/main/INSTALL.md" target="_blank" rel="noopener noreferrer" class="docs-link">설정 안내 ↗</a></section>
   <p class="privacy-note">입력한 키는 서버 재시작 시 삭제됩니다.</p>
 </dialog>
 <dialog id="browser-dialog" class="dialog browser-dialog" aria-labelledby="browser-title">
@@ -74,6 +77,6 @@
 <div id="toast" role="status" hidden></div>
 <script src="runtime.js?v=research"></script>
 <script src="game.js?v=research"></script>
-<script src="showcase.js?v=restaurants"></script>
+<script src="showcase.js?v=github-runtime"></script>
 </body>
 </html>
