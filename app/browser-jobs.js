@@ -8,6 +8,31 @@ const SOURCES = {
   daum: { name: "Daum", url: q => `https://search.daum.net/search?w=tot&q=${encodeURIComponent(q)}` },
 };
 
+// Executed in the page. Prefer actual result titles over navigation or ads.
+function extractSearchResults() {
+  const seen = new Set();
+  const preferred = document.querySelectorAll('a:has(.sds-comps-text-type-headline1), a.title_link, a.news_tit, a.api_txt_lines.total_tit, #search a:has(h3), #rso a:has(h3), #webdocColl a:has(.tit)');
+  const candidates = preferred.length ? [...preferred] : [...document.querySelectorAll('a[href]')];
+  return candidates.flatMap(a => {
+    if (a.closest('header,footer,nav,[role="navigation"],#power_link,.ad_section')) return [];
+    const heading = a.querySelector('.sds-comps-text-type-headline1,h3,.tit');
+    const title = (heading?.innerText || a.innerText || '').replace(/새 창 열림/g,'').replace(/\s+/g,' ').trim();
+    let url;
+    try {
+      url = new URL(a.href);
+      if (/google\.com$/.test(url.hostname) && url.pathname === '/url' && url.searchParams.get('q')) url = new URL(url.searchParams.get('q'));
+    } catch { return []; }
+    if (!/^https?:$/.test(url.protocol) || title.length < (preferred.length ? 3 : 15) || title.length > 250) return [];
+    if (/^(search\.naver\.com|(?:www|accounts|support)\.google\.com|search\.daum\.net)$/.test(url.hostname)) return [];
+    if (/(^|\.)(help|nid|ader|adcr|keep|pay)\.naver\.com$/.test(url.hostname)) return [];
+    url.hash = '';
+    if (seen.has(url.href)) return [];
+    seen.add(url.href);
+    const snippet = (a.closest('article,.fds-web-doc-root,.g,.c-container,li,.total_wrap,.wrap_cont')?.innerText || '').replace(/새 창 열림/g,'').replace(/\s+/g,' ').trim().slice(0,450);
+    return [{title,url:url.href,snippet}];
+  }).slice(0,12);
+}
+
 class BrowserJobs {
   constructor({ endpoint = "http://127.0.0.1:9222", chromium, sources = SOURCES } = {}) {
     this.endpoint = endpoint; this.chromium = chromium; this.sources = sources; this.jobs = new Map(); this.busy = false;
@@ -56,23 +81,7 @@ class BrowserJobs {
         await page.evaluate(y => window.scrollTo({ top: y, behavior: "instant" }), y);
         await page.waitForTimeout(600); await capture();
       }
-      job.results = await page.evaluate(() => {
-        const seen = new Set();
-        return [...document.querySelectorAll("a[href]")].flatMap(a => {
-          const title = (a.innerText || "").replace(/\s+/g, " ").trim();
-          let url;
-          try {
-            url = new URL(a.href);
-            // Google redirect links expose the actual source in the q parameter.
-            if (url.pathname === "/url" && url.searchParams.get("q")) url = new URL(url.searchParams.get("q"));
-          } catch { return []; }
-          if (!/^https?:$/.test(url.protocol) || title.length < 15 || title.length > 250 || seen.has(url.href)) return [];
-          if (/^(search\.naver\.com|www\.google\.com|accounts\.google\.com|search\.daum\.net)$/.test(url.hostname)) return [];
-          seen.add(url.href);
-          const snippet = (a.closest("article,li,.total_wrap,.g,.c-container")?.innerText || "").replace(/\s+/g, " ").trim().slice(0, 450);
-          return [{ title, url: url.href, snippet }];
-        }).slice(0, 12);
-      });
+      job.results = await page.evaluate(extractSearchResults);
       this.event(job, "extract", `${job.results.length}개 링크 추출`);
       if (!job.results.length) {
         job.note = "링크를 추출하지 못했습니다. 실제 화면에서 검색 결과 또는 사이트의 접근 제한을 확인해주세요.";
@@ -94,4 +103,4 @@ class BrowserJobs {
     }
   }
 }
-module.exports = { BrowserJobs, SOURCES };
+module.exports = { BrowserJobs, SOURCES, extractSearchResults };

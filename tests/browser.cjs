@@ -5,7 +5,7 @@ const path=require('node:path');
 const fs=require('node:fs');
 const {spawn}=require('node:child_process');
 const {chromium}=require('playwright-core');
-const {BrowserJobs}=require('../app/browser-jobs');
+const {BrowserJobs,extractSearchResults}=require('../app/browser-jobs');
 const {createShowcase}=require('../app/showcase-api');
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 async function freePort(){const s=http.createServer();await new Promise(r=>s.listen(0,'127.0.0.1',r));const p=s.address().port;await new Promise(r=>s.close(r));return p;}
@@ -131,6 +131,10 @@ async function freePort(){const s=http.createServer();await new Promise(r=>s.lis
     if(process.env.SCREENSHOT_DIR)fs.writeFileSync(path.join(process.env.SCREENSHOT_DIR,'bac-demo-browser-capture.jpg'),jobs.jobs.get(job.id).frame);
     assert.throws(()=>jobs.create({query:'x',provider:'constructor'}),e=>e.status===400);
     console.log('Browser passed: real CDP navigation, scroll, link extraction, JPEG capture, single-job lock, Chromium stays alive.');
+    const extractPage=await context.newPage();
+    await extractPage.setContent('<nav><a href="https://help.naver.com/">Navigation and support link</a></nav><a href="https://ader.naver.com/ad">Advertisement destination title</a><div class="fds-web-doc-root"><a href="https://example.com/organic"><span class="sds-comps-text-type-headline1">Actual organic result title</span></a><a href="https://example.com/organic">Repeated description of the same result</a></div>');
+    assert.deepEqual((await extractPage.evaluate(extractSearchResults)).map(r=>({title:r.title,url:r.url})),[{title:'Actual organic result title',url:'https://example.com/organic'}]);await extractPage.close();
+    console.log('Extraction passed: result title is preferred; navigation, ads and repeated description links are excluded.');
     const viewer=createShowcase({browser:new BrowserJobs({endpoint:'http://127.0.0.1:'+cdpPort,sources:{naver:{name:'Naver fixture',url:q=>'http://127.0.0.1:'+fixture.address().port+'/?q='+encodeURIComponent(q)}}})});
     fixtureApi=http.createServer(async(req,res)=>{if(!await viewer.handle(req,res)){res.writeHead(404);res.end();}});
     await new Promise(r=>fixtureApi.listen(0,'127.0.0.1',r));
