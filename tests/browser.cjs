@@ -56,6 +56,7 @@ async function freePort(){const s=http.createServer();await new Promise(r=>s.lis
     await page.locator('[data-close=settings-dialog]').click();await page.locator('#chat-close').click();await wait(450);
     console.log('Panel passed: visible agents at desktop/tablet widths, canvas selection, agent switching, draft retention, outside click, Escape, inert closed panel, nested dialog.');
     await page.locator('[data-mission=browser]').click();assert(await page.locator('#browser-dialog').isVisible());
+    assert.deepEqual(await page.locator('#browser-source option').evaluateAll(options=>options.map(o=>o.value)),['auto','naver','daum']);
     await page.locator('#browser-run').click();await page.waitForFunction(()=>document.querySelector('#browser-note').textContent.includes('Chromium에 연결할 수 없습니다'));
     assert.equal(await page.locator('#browser-frame').isVisible(),false);assert(await page.locator('#browser-share').isDisabled());
     await page.locator('[data-close=browser-dialog]').click();
@@ -155,7 +156,7 @@ async function freePort(){const s=http.createServer();await new Promise(r=>s.lis
     await new Promise(r=>researchFixture.listen(0,'127.0.0.1',r));
     const researchBase='http://127.0.0.1:'+researchFixture.address().port;
     const fixtureNews=(q,period)=>researchBase+'/news?q='+encodeURIComponent(q)+'&start='+period?.start+'&end='+period?.end;
-    const researchSources={naver:{name:'Naver fixture',url:q=>researchBase+'/search?q='+encodeURIComponent(q),newsUrl:fixtureNews},daum:{name:'Daum fixture',url:q=>researchBase+'/other?q='+encodeURIComponent(q),newsUrl:fixtureNews},google:{name:'Google fixture',url:()=>{throw new Error('Automatic research must never choose Google');}}};
+    const researchSources={naver:{name:'Naver fixture',url:q=>researchBase+'/search?q='+encodeURIComponent(q),newsUrl:fixtureNews},daum:{name:'Daum fixture',url:q=>researchBase+'/other?q='+encodeURIComponent(q),newsUrl:fixtureNews}};
     const prompts=[],researchJobs=new BrowserJobs({endpoint:'http://127.0.0.1:'+cdpPort,sources:researchSources,ask:()=>async(system,user)=>{
       prompts.push({system,user});
       if(system.startsWith('Turn the user'))return JSON.stringify({queries:['Alpha official','Beta official'],objective:'Compare actual articles'});

@@ -18,14 +18,13 @@ function newsUrl(provider,query,period){
 
 const SOURCES = {
   naver: { name: "Naver", newsUrl:(q,period)=>newsUrl('naver',q,period), url: q => `https://search.naver.com/search.naver?query=${encodeURIComponent(q)}` },
-  google: { name: "Google", newsUrl:q=>`https://www.google.com/search?tbm=nws&q=${encodeURIComponent(q)}`, url: q => `https://www.google.com/search?q=${encodeURIComponent(q)}` },
   daum: { name: "Daum", newsUrl:(q,period)=>newsUrl('daum',q,period), url: q => `https://search.daum.net/search?w=tot&q=${encodeURIComponent(q)}` },
 };
 
 // Executed in the page. Prefer actual result titles over navigation or ads.
 function extractSearchResults() {
   const seen = new Set();
-  const preferred = document.querySelectorAll('a:has(.sds-comps-text-type-headline1), a.title_link, a.news_tit, a.api_txt_lines.total_tit, #search a:has(h3), #rso a:has(h3), #webdocColl a:has(.tit)');
+  const preferred = document.querySelectorAll('a:has(.sds-comps-text-type-headline1), a.title_link, a.news_tit, a.api_txt_lines.total_tit, #webdocColl a:has(.tit)');
   const candidates = preferred.length ? [...preferred] : [...document.querySelectorAll('a[href]')];
   return candidates.flatMap(a => {
     if (a.closest('header,footer,nav,[role="navigation"],#power_link,.ad_section')) return [];
@@ -34,15 +33,14 @@ function extractSearchResults() {
     let url;
     try {
       url = new URL(a.href);
-      if (/google\.com$/.test(url.hostname) && url.pathname === '/url' && url.searchParams.get('q')) url = new URL(url.searchParams.get('q'));
     } catch { return []; }
     if (!/^https?:$/.test(url.protocol) || title.length < (preferred.length ? 3 : 15) || title.length > 250) return [];
-    if (/^(search\.naver\.com|(?:www|accounts|support)\.google\.com|search\.daum\.net)$/.test(url.hostname)) return [];
+    if (/^(search\.naver\.com|search\.daum\.net)$/.test(url.hostname)) return [];
     if (/(^|\.)(help|nid|ader|adcr|keep|pay)\.naver\.com$/.test(url.hostname)) return [];
     url.hash = '';
     if (seen.has(url.href)) return [];
     seen.add(url.href);
-    const snippet = (a.closest('article,.fds-web-doc-root,.g,.c-container,li,.total_wrap,.wrap_cont')?.innerText || '').replace(/새 창 열림/g,'').replace(/\s+/g,' ').trim().slice(0,450);
+    const snippet = (a.closest('article,.fds-web-doc-root,.c-container,li,.total_wrap,.wrap_cont')?.innerText || '').replace(/새 창 열림/g,'').replace(/\s+/g,' ').trim().slice(0,450);
     return [{title,url:url.href,snippet}];
   }).slice(0,12);
 }
@@ -59,7 +57,7 @@ class BrowserJobs {
     if (this.busy) throw new Problem("브라우저가 탐색 중입니다. 현재 작업이 끝난 뒤 실행해주세요.", 409);
     for (const [id, job] of this.jobs) if (Date.now() - job.at > 600000) this.jobs.delete(id);
     while (this.jobs.size >= 12) this.jobs.delete(this.jobs.keys().next().value);
-    const sourceKey=provider==='auto'?['naver','daum',...Object.keys(this.sources).filter(key=>key!=='google')].find(key=>this.sources[key]):provider;
+    const sourceKey=provider==='auto'?['naver','daum',...Object.keys(this.sources)].find(key=>this.sources[key]):provider;
     if(!sourceKey)throw new Problem('자동 조사에 사용할 검색원이 없습니다. Naver 또는 Daum을 연결해주세요.');
     const source = this.sources[sourceKey];
     const job = { id: randomUUID(), query: query.trim(), provider, mode, source: provider === "auto" && mode !== "search" ? "여러 검색원" : source.name, url: source.url(query.trim()), status: "running", events: [], results: [], documents: [], searches: [], plan:null, summary:null, frame: null, revision: 0, at: Date.now() };
@@ -92,7 +90,7 @@ class BrowserJobs {
       try {job.plan=await planResearch(job.query,job.mode,ask);} catch {job.plan=await planResearch(job.query,job.mode,null);job.warnings=['AI 검색 계획을 만들지 못해 요청에서 검색어를 추렸습니다.'];}
       this.event(job,"planned",`검색어: ${job.plan.queries.join(' / ')}`);
       const keys=job.provider==='auto'?['naver','daum'].filter(k=>this.sources[k]):[job.provider];
-      if(!keys.length)keys.push(...Object.keys(this.sources).filter(key=>key!=='google').slice(0,2));
+      if(!keys.length)keys.push(...Object.keys(this.sources).slice(0,2));
       const groups=[];
       for(const query of job.plan.queries)for(const key of keys){
         if(Date.now()-started>150000)break;

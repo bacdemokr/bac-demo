@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
 const {planResearch,timeRange,dateValue,documentIssue,matchesTopic,mergeResults,chooseDocuments,rankDocuments,summarizeResearch}=require('../app/browser-research');
-const {SOURCES}=require('../app/browser-jobs');
+const {BrowserJobs,SOURCES}=require('../app/browser-jobs');
 test('AI turns a comparison question into bounded searches; without a model it preserves the request',async()=>{
   const request='Alpha와 Beta의 차이를 공식 자료로 비교해줘.';
   const plan=await planResearch(request,'compare',async(system,user)=>{assert.match(system,/comparisons/);assert.equal(JSON.parse(user).request,request);return JSON.stringify({queries:['Alpha official documentation','Beta official documentation'],objective:'공식 자료 비교'});});
@@ -30,6 +30,8 @@ test('News request uses short independent topics and a separate Korean calendar 
   assert.equal(dateValue('2026-02-30'),null);assert.equal(dateValue('2026.10.09. 08:25'),'2026-10-09');
   assert.equal(dateValue('2026-10-10T16:00:00Z'),'2026-10-11');
   for(const source of [SOURCES.naver,SOURCES.daum]){const url=new URL(source.newsUrl(direct.queries[0],direct.timeRange));assert(url.searchParams.has('pd')||url.searchParams.has('period'));assert.match(url.href,/20261005|2026.10.05/);assert.match(url.href,/20261011|2026.10.11/);}
+  assert.deepEqual(Object.keys(SOURCES),['naver','daum']);
+  assert.throws(()=>new BrowserJobs().create({query:'AI 발표',provider:'google'}),e=>e.status===400);
 });
 test('Unrelated pages never fill evidence slots; original topic and publication date are checked after navigation',async()=>{
   const request='최근 일주일 NVIDIA와 로컬 AI 발표를 정리해줘.';
@@ -49,8 +51,8 @@ test('Unrelated pages never fill evidence slots; original topic and publication 
   assert.equal(matchesTopic({title:'지역 기업, 로컬 AI 추론 도입',text:'기업 PC에서 모델을 실행해 프라이버시 보호'},plan),true);
 });
 test('Cross-source merge removes trackers and duplicates while preserving source attribution',()=>{
-  const results=mergeResults([{source:'Naver',query:'Alpha',results:[{title:'Alpha docs',url:'https://docs.example/a?utm_source=naver#top'}]},{source:'Google',query:'Alpha',results:[{title:'Same docs',url:'https://docs.example/a'}]}]);
-  assert.equal(results.length,1);assert.equal(results[0].url,'https://docs.example/a');assert.deepEqual(results[0].searchSources,['Naver','Google']);
+  const results=mergeResults([{source:'Naver',query:'Alpha',results:[{title:'Alpha docs',url:'https://docs.example/a?utm_source=naver#top'}]},{source:'Daum',query:'Alpha',results:[{title:'Same docs',url:'https://docs.example/a'}]}]);
+  assert.equal(results.length,1);assert.equal(results[0].url,'https://docs.example/a');assert.deepEqual(results[0].searchSources,['Naver','Daum']);
   assert.equal(mergeResults([{results:[{url:'javascript:alert(1)'},{url:'https://user:secret@example.com/'}]}]).length,0);
   const many=mergeResults(['Alpha','Beta'].map(query=>({query,source:'Naver',results:Array.from({length:25},(_,i)=>({title:query,url:`https://example.com/${query}/${i}`}))})));
   assert.equal(many.length,30);assert(many.filter(r=>r.title==='Beta').length>=10,'Second topic must survive the result limit.');
