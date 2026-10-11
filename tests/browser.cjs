@@ -197,7 +197,7 @@ async function freePort(){const s=http.createServer();await new Promise(r=>s.lis
     assert.equal(await page.locator('.evidence-card').count(),3);assert.equal(await page.locator('.source-citation').count(),3);assert.equal(await page.locator('#browser-candidates').getAttribute('open'),null);
     await page.waitForFunction(()=>document.querySelector('#browser-frame').naturalWidth===1280);
     assert((await page.locator('#browser-plan').textContent()).includes('Alpha official'));
-    await page.setViewportSize({width:390,height:844});await wait(300);assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    await page.setViewportSize({width:390,height:844});await wait(300);assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert(await page.evaluate(()=>document.querySelector('#browser-dialog').scrollWidth<=document.querySelector('#browser-dialog').clientWidth));
     await page.locator('#browser-summary').scrollIntoViewIfNeeded();if(process.env.SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'bac-demo-research-mobile.png')});
     await page.setViewportSize({width:1440,height:900});await wait(300);await page.evaluate(()=>document.querySelector('#browser-dialog').scrollTop=0);if(process.env.SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'bac-demo-research-preview.png')});
     await page.setViewportSize({width:390,height:844});await page.evaluate(()=>window.BacShowcase.settings('gateway'));await wait(300);assert(await page.evaluate(()=>document.querySelector('#settings-dialog').scrollWidth<=document.querySelector('#settings-dialog').clientWidth));await page.locator('[data-close=settings-dialog]').click();
