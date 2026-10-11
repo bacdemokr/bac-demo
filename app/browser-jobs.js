@@ -2,6 +2,7 @@
 const { randomUUID } = require("crypto");
 const { Problem } = require("./integrations");
 const {planResearch,mergeResults,chooseDocuments,rankDocuments,summarizeResearch,extractDocument,documentIssue}=require("./browser-research");
+const {MAP_SOURCES,restaurantRequest,searchRestaurants}=require('./restaurant-search');
 
 function newsUrl(provider,query,period){
   const naver=provider==='naver';
@@ -46,23 +47,27 @@ function extractSearchResults() {
 }
 
 class BrowserJobs {
-  constructor({ endpoint = "http://127.0.0.1:9222", chromium, sources = SOURCES, ask = null } = {}) {
-    this.endpoint = endpoint; this.chromium = chromium; this.sources = sources; this.ask = ask; this.jobs = new Map(); this.busy = false;
+  constructor({ endpoint = "http://127.0.0.1:9222", chromium, sources = SOURCES, mapSources = MAP_SOURCES, ask = null } = {}) {
+    this.endpoint = endpoint; this.chromium = chromium; this.sources = sources; this.mapSources = mapSources; this.ask = ask; this.jobs = new Map(); this.busy = false;
   }
-  create({ query, provider = "naver", mode = "search" }) {
-    if (!["search","research","news","compare"].includes(mode)) throw new Problem("조사 방식을 확인해주세요.");
+  create({ query, region, menu, provider = "naver", mode = "search" }) {
+    if (!["search","research","news","compare","restaurants"].includes(mode)) throw new Problem("조사 방식을 확인해주세요.");
+    const food=mode==='restaurants'?restaurantRequest(region,menu):null;
+    if(food)query=food.query;
+    const sources=food?this.mapSources:this.sources;
     const maxLength=mode==='search'?240:600;
     if (typeof query !== "string" || !query.trim() || query.length > maxLength) throw new Problem(`조사 요청은 1-${maxLength}자로 입력해주세요.`);
-    if (provider !== "auto" && !Object.hasOwn(this.sources, provider)) throw new Problem("지원하는 검색 소스를 선택해주세요.");
+    if (provider !== "auto" && !Object.hasOwn(sources, provider)) throw new Problem("지원하는 검색 소스를 선택해주세요.");
     if (this.busy) throw new Problem("브라우저가 탐색 중입니다. 현재 작업이 끝난 뒤 실행해주세요.", 409);
     for (const [id, job] of this.jobs) if (Date.now() - job.at > 600000) this.jobs.delete(id);
     while (this.jobs.size >= 12) this.jobs.delete(this.jobs.keys().next().value);
-    const sourceKey=provider==='auto'?['naver','daum',...Object.keys(this.sources)].find(key=>this.sources[key]):provider;
+    const sourceKey=provider==='auto'?['naver','daum',...Object.keys(sources)].find(key=>sources[key]):provider;
     if(!sourceKey)throw new Problem('자동 조사에 사용할 검색원이 없습니다. Naver 또는 Daum을 연결해주세요.');
-    const source = this.sources[sourceKey];
+    const source = sources[sourceKey];
     const job = { id: randomUUID(), query: query.trim(), provider, mode, source: provider === "auto" && mode !== "search" ? "여러 검색원" : source.name, url: source.url(query.trim()), status: "running", events: [], results: [], documents: [], searches: [], plan:null, summary:null, frame: null, revision: 0, at: Date.now() };
+    if(food)Object.assign(job,{region:food.region,menu:food.menu,restaurants:[]});
     this.jobs.set(job.id, job); this.busy = true;
-    (mode === "search" ? this.run(job) : this.research(job)).finally(() => { this.busy = false; });
+    (food?searchRestaurants({job,endpoint:this.endpoint,chromium:this.chromium,sources,event:(stage,text)=>this.event(job,stage,text)}):mode === "search" ? this.run(job) : this.research(job)).finally(() => { this.busy = false; });
     return this.public(job.id);
   }
   event(job, stage, text) { job.stage = stage; job.events.push({ stage, text, at: Date.now() }); }
@@ -75,7 +80,7 @@ class BrowserJobs {
   evidence(id) {
     this.public(id);
     const job=this.jobs.get(id);
-    return {request:job.query,mode:job.mode,plan:job.plan,results:job.results,documents:job.documents,searches:job.searches};
+    return {request:job.query,mode:job.mode,plan:job.plan,results:job.results,documents:job.documents,searches:job.searches,restaurants:job.restaurants,checkedAt:job.checkedAt};
   }
   async research(job) {
     let browser,page;

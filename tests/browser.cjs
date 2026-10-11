@@ -223,7 +223,7 @@ async function freePort(){const s=http.createServer();await new Promise(r=>s.lis
     await page.setViewportSize({width:1440,height:900});await wait(300);await page.evaluate(()=>document.querySelector('#browser-dialog').scrollTop=0);if(process.env.SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'bac-demo-research-preview.png')});
     await page.setViewportSize({width:390,height:844});await page.evaluate(()=>window.BacShowcase.settings('tools'));await wait(300);assert(await page.evaluate(()=>document.querySelector('#settings-dialog').scrollWidth<=document.querySelector('#settings-dialog').clientWidth));await page.locator('[data-close=settings-dialog]').click();
     assert.deepEqual(errors,[]);console.log('Research UI passed: automatic answer, clickable citations, dated evidence, collapsed candidates, editable question presets, mobile width.');
-
+    await require('./restaurants-browser.cjs')({page,cdpPort});assert.deepEqual(errors,[]);
 
   }finally{
     if(fixtureApi){fixtureApi.closeAllConnections();await new Promise(r=>fixtureApi.close(r));}if(chrome)await chrome.close();if(fixture){fixture.closeAllConnections();await new Promise(r=>fixture.close(r));}server.kill();await new Promise(r=>{if(server.exitCode!==null)r();else server.once('exit',r);});

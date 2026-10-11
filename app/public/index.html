@@ -51,11 +51,13 @@
 <dialog id="browser-dialog" class="dialog browser-dialog" aria-labelledby="browser-title">
   <div class="dialog-head"><h2 id="browser-title">브라우저 탐색</h2><button class="icon-button" data-close="browser-dialog" aria-label="탐색 창 닫기">×</button></div>
   <form id="browser-form">
-    <label for="browser-query">조사할 질문</label><textarea id="browser-query" placeholder="궁금한 내용과 원하는 결과를 적어주세요." rows="2" maxlength="600" required>DGX Spark의 로컬 AI 활용 사례를 조사해줘. 공식 자료와 실제 사용 사례를 구분하고 출처를 알려줘.</textarea>
-    <div class="browser-options"><label class="sr-only" for="browser-mode">조사 방식</label><select id="browser-mode"><option value="research">일반 조사</option><option value="news">뉴스 정리</option><option value="compare">비교 조사</option><option value="search">빠른 검색</option></select><label class="sr-only" for="browser-source">검색원</label><select id="browser-source"><option value="auto">Naver + Daum</option><option value="naver">Naver</option><option value="daum">Daum</option></select><button class="primary-button" id="browser-run">조사 시작</button></div>
+    <div id="restaurant-fields"><div><label for="restaurant-region">지역</label><input id="restaurant-region" placeholder="예: 성수동, 강남역" value="성수동" maxlength="60" required></div><div><label for="restaurant-menu">메뉴</label><input id="restaurant-menu" placeholder="예: 파스타, 삼겹살" value="파스타" maxlength="40" required></div></div>
+    <div id="browser-question-fields" hidden><label for="browser-query">조사할 질문</label><textarea id="browser-query" placeholder="궁금한 내용과 원하는 결과를 적어주세요." rows="2" maxlength="600" disabled>DGX Spark의 로컬 AI 활용 사례를 조사해줘. 공식 자료와 실제 사용 사례를 구분하고 출처를 알려줘.</textarea></div>
+    <div class="browser-options"><label class="sr-only" for="browser-mode">조사 방식</label><select id="browser-mode"><option value="restaurants">맛집 찾기</option><option value="research">일반 조사</option><option value="news">뉴스 정리</option><option value="compare">비교 조사</option><option value="search">빠른 검색</option></select><label class="sr-only" for="browser-source">검색원</label><select id="browser-source"><option value="auto">네이버 + 카카오</option><option value="naver">네이버지도</option><option value="daum">카카오맵</option></select><button class="primary-button" id="browser-run">맛집 검색</button></div>
   </form>
-  <div id="browser-examples" aria-label="조사 예시"><button data-research-example="news">최근 AI 뉴스</button><button data-research-example="compare">DGX Spark / Jetson 비교</button><button data-research-example="research">로컬 AI 활용 사례</button></div>
+  <div id="browser-examples" aria-label="조사 예시" hidden><button data-research-example="news">최근 AI 뉴스</button><button data-research-example="compare">DGX Spark / Jetson 비교</button><button data-research-example="research">로컬 AI 활용 사례</button></div>
   <div id="browser-plan" role="status" hidden></div>
+  <section id="restaurant-results" hidden aria-labelledby="restaurant-title"><div class="restaurant-toolbar"><h3 id="restaurant-title">식당 비교</h3><div role="group" aria-label="평점 정렬"><button type="button" class="quiet-button" data-restaurant-sort="naver" aria-pressed="false">네이버 평점순</button><button type="button" class="quiet-button" data-restaurant-sort="daum" aria-pressed="true">카카오 평점순</button></div></div><p id="restaurant-result-note" role="status"></p><div class="restaurant-table-scroll" tabindex="0" role="region" aria-label="지도별 식당 평점 비교표"><table id="restaurant-table"><thead><tr><th scope="col">식당</th><th scope="col">네이버지도</th><th scope="col">카카오맵</th><th scope="col">지도</th></tr></thead><tbody></tbody></table></div><p class="field-note">평점은 지도에 표시된 값입니다. 미표시는 별점이 없는 경우, 미확인은 해당 지도에서 후보를 확인하지 못한 경우입니다.</p><ul id="restaurant-errors"></ul></section>
   <div class="browser-layout"><div class="browser-window"><div class="browser-chrome"><div class="traffic-lights"><i></i><i></i><i></i></div><span id="browser-address">about:blank</span><span id="browser-live">CDP</span></div><div class="browser-viewport"><div id="browser-empty">탐색 대기</div><img id="browser-frame" alt="실제 Chromium 탐색 화면" hidden></div></div><aside class="browser-trace"><ol id="browser-steps"></ol><p id="browser-note" role="status">탐색 준비</p></aside></div>
   <section id="browser-summary" hidden><h3>조사 결과</h3><div id="browser-summary-text" role="status"></div><ul id="browser-limitations"></ul></section>
   <section id="browser-evidence" hidden><h3>원문 확인</h3><div id="browser-documents"></div></section>
@@ -72,6 +74,6 @@
 <div id="toast" role="status" hidden></div>
 <script src="runtime.js?v=research"></script>
 <script src="game.js?v=research"></script>
-<script src="showcase.js?v=research"></script>
+<script src="showcase.js?v=restaurants"></script>
 </body>
 </html>

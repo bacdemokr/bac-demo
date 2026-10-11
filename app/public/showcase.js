@@ -93,11 +93,20 @@
   $('mail-disconnect').onclick=()=>configure('mail-connect-form','mail-status','/api/integrations/agentmail',{disconnect:true},'mail-key');
   $('settings-dialog').addEventListener('close',()=>{$('tg-token').value='';$('mail-key').value='';});
   const examples={news:'최근 일주일 NVIDIA와 로컬 AI 관련 주요 발표를 정리해줘. 발표 날짜와 출처도 알려줘.',compare:'DGX Spark와 Jetson을 비교해줘. 사용 목적, 실행할 수 있는 AI 작업, 선택할 때 고려할 점을 공식 자료로 확인해줘.',research:'로컬에서 AI 에이전트를 실행하는 실제 사례를 조사해줘. 사용한 도구와 활용 방식, 출처를 함께 정리해줘.'};
-  function syncBrowserMode(){$('browser-source').querySelector('option[value=auto]').textContent=$('browser-mode').value==='search'?'자동 선택':'Naver + Daum';$('browser-query').maxLength=$('browser-mode').value==='search'?240:600;$('browser-run').textContent=$('browser-mode').value==='search'?'검색 시작':'조사 시작';}
+  function syncBrowserMode(){
+    const mode=$('browser-mode').value,food=mode==='restaurants';
+    $('restaurant-fields').hidden=!food;$('browser-question-fields').hidden=food;$('browser-examples').hidden=food;
+    $('browser-query').disabled=food||browserRunning;$('browser-query').required=!food;$('browser-query').maxLength=mode==='search'?240:600;
+    for(const id of ['restaurant-region','restaurant-menu']){$(id).disabled=!food||browserRunning;$(id).required=food;}
+    const labels=food?{auto:'네이버 + 카카오',naver:'네이버지도',daum:'카카오맵'}:{auto:mode==='search'?'자동 선택':'Naver + Daum',naver:'Naver',daum:'Daum'};
+    for(const option of $('browser-source').options)option.textContent=labels[option.value];
+    $('browser-run').textContent=food?'맛집 검색':mode==='search'?'검색 시작':'조사 시작';
+    $('browser-summary-run').hidden=(browserJob?.mode||mode)==='restaurants';
+  }
   document.querySelectorAll('[data-research-example]').forEach(b=>b.onclick=()=>{if(browserRunning)return;$('browser-mode').value=b.dataset.researchExample;syncBrowserMode();$('browser-query').value=examples[b.dataset.researchExample];$('browser-source').value='auto';$('browser-query').focus();});
   $('browser-mode').onchange=syncBrowserMode;
   function openBrowser(){if(!$('browser-dialog').open)$('browser-dialog').showModal();}
-  async function browse(query){if(browserRunning){openBrowser();return;}openBrowser();$('browser-query').value=query;$('browser-form').requestSubmit();}
+  async function browse(query){if(browserRunning){openBrowser();return;}openBrowser();if($('browser-mode').value==='restaurants'){$('browser-mode').value='research';syncBrowserMode();}$('browser-query').value=query;$('browser-form').requestSubmit();}
   let renderedJob='',renderedEvents=0,documentSignature='';
   function renderSteps(job){
     $('browser-dialog').classList.toggle('research-complete',job.mode!=='search'&&job.status==='done');
@@ -128,6 +137,7 @@
     }
   }
   function renderSummary(job){
+    if(job.mode==='restaurants'){renderRestaurants(job);return;}
     if(job.mode==='search'&&!job.summary&&!job.summaryError)return;
     $('browser-summary').hidden=false;$('browser-limitations').replaceChildren();
     if(job.summary?.answer){browserSummary=job.summary.answer;renderAnswer(job.summary.answer,job);for(const text of job.summary.limitations||[]){const li=document.createElement('li');li.textContent=text;$('browser-limitations').append(li);}}
@@ -135,21 +145,51 @@
     for(const warning of new Set([...(job.warnings||[]),...(job.searches||[]).filter(s=>s.error).map(s=>s.source+': '+s.error)])){const li=document.createElement('li');li.textContent=warning;$('browser-limitations').append(li);}
     if($('browser-dialog').open)$('browser-summary').scrollIntoView({block:'nearest'});
   }
-  function browserText(job){const docs=(job.documents||[]).filter(d=>d.status==='read');return `조사 요청: ${job.query}\n\n`+(browserSummary?browserSummary+'\n\n':'')+(docs.length?'읽은 근거:\n'+docs.map(d=>`[${d.id}] ${d.title}\n${d.url}${d.published?'\n게시일: '+d.published:''}${!browserSummary&&d.excerpt?'\n원문 발췌: '+d.excerpt:''}`).join('\n\n'):job.mode==='search'?job.results.map((r,i)=>`${i+1}. ${r.title}\n${r.url}`).join('\n\n'):job.summaryError||'질문에 맞는 근거를 확인하지 못했습니다.');}
-  function updateBrowserButtons(){const usable=browserJob?.status==='done'&&browserJob.results.length>0,read=browserJob?.mode==='search'||browserJob?.documents?.some(d=>d.status==='read');$('browser-summary-run').disabled=!usable||!read||summaryRunning;$('browser-summary-run').textContent=browserJob?.summary?'결과 다시 정리':'AI로 정리';$('browser-share').disabled=!usable;}
+  let restaurantSort='daum';
+  function sortedRestaurants(job){
+    const score=p=>p?Number.isFinite(p.rating)?p.rating:-1:-2;
+    const count=p=>restaurantSort==='daum'?p?.ratingCount||0:p?.reviewCount||0;
+    return [...(job.restaurants||[])].sort((a,b)=>score(b[restaurantSort])-score(a[restaurantSort])||count(b[restaurantSort])-count(a[restaurantSort])||a.name.localeCompare(b.name,'ko')).slice(0,20);
+  }
+  function restaurantMetric(place,source){
+    if(!place)return ['미확인',''];
+    const score=place.rating!==null?`${place.ratingText} / 5`:'미표시';
+    const count=source==='daum'?place.ratingCountText:place.reviewCountText;
+    return [score,count?(source==='daum'?'평가 '+count.replace(/건$/,'')+'건':'리뷰 '+count+'개'):''];
+  }
+  function renderRestaurants(job){
+    const root=$('restaurant-results'),body=$('restaurant-table').querySelector('tbody');root.hidden=false;body.replaceChildren();
+    const rows=sortedRestaurants(job),date=new Date(job.checkedAt);
+    $('restaurant-result-note').textContent=`확인한 ${job.restaurants.length}곳 중 ${rows.length}곳 · ${Number.isNaN(date.getTime())?'':date.toLocaleString('ko-KR',{timeZone:'Asia/Seoul',hour12:false})+' 확인'}`;
+    document.querySelectorAll('[data-restaurant-sort]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.restaurantSort===restaurantSort)));
+    rows.forEach(row=>{
+      const tr=document.createElement('tr'),name=document.createElement('td'),title=document.createElement('strong'),address=document.createElement('small');title.textContent=row.name;address.textContent=row.address;name.append(title,address);tr.append(name);
+      for(const key of ['naver','daum']){const td=document.createElement('td'),[rating,reviews]=restaurantMetric(row[key],key),score=document.createElement('strong'),count=document.createElement('small');td.dataset.map=key==='naver'?'네이버지도':'카카오맵';score.textContent=rating;score.className=row[key]?.rating!=null?'restaurant-rating':'muted';count.textContent=reviews;td.append(score,count);tr.append(td);}
+      const links=document.createElement('td');for(const key of ['naver','daum']){const href=validLink(row[key]?.url);if(!href)continue;const a=document.createElement('a');a.href=href;a.target='_blank';a.rel='noopener noreferrer';a.textContent=key==='naver'?'네이버 ↗':'카카오 ↗';links.append(a);}tr.append(links);body.append(tr);
+    });
+    $('restaurant-errors').replaceChildren();for(const group of job.searches.filter(s=>s.error||s.warning)){const li=document.createElement('li');li.textContent=group.source+': '+(group.error||group.warning);const href=validLink(group.url);if(href){const a=document.createElement('a');a.href=href;a.target='_blank';a.rel='noopener noreferrer';a.textContent=' 지도 열기 ↗';li.append(a);}$('restaurant-errors').append(li);}
+    if($('browser-dialog').open)root.scrollIntoView({block:'nearest'});
+  }
+  document.querySelectorAll('[data-restaurant-sort]').forEach(b=>b.onclick=()=>{restaurantSort=b.dataset.restaurantSort;if(browserJob?.mode==='restaurants'&&browserJob.status==='done')renderRestaurants(browserJob);});
+  function browserText(job){
+    if(job.mode==='restaurants')return `맛집 검색: ${job.region} / ${job.menu}\n${restaurantSort==='daum'?'카카오':'네이버'} 평점순 · 확인한 후보 중 상위 20곳\n확인: ${job.checkedAt}\n\n`+sortedRestaurants(job).map((row,i)=>`${i+1}. ${row.name}\n${row.address}\n`+['naver','daum'].map(key=>(key==='naver'?'네이버지도':'카카오맵')+': '+restaurantMetric(row[key],key).filter(Boolean).join(' · ')+(row[key]?'\n'+row[key].url:'')).join('\n')).join('\n\n');
+    const docs=(job.documents||[]).filter(d=>d.status==='read');return `조사 요청: ${job.query}\n\n`+(browserSummary?browserSummary+'\n\n':'')+(docs.length?'읽은 근거:\n'+docs.map(d=>`[${d.id}] ${d.title}\n${d.url}${d.published?'\n게시일: '+d.published:''}${!browserSummary&&d.excerpt?'\n원문 발췌: '+d.excerpt:''}`).join('\n\n'):job.mode==='search'?job.results.map((r,i)=>`${i+1}. ${r.title}\n${r.url}`).join('\n\n'):job.summaryError||'질문에 맞는 근거를 확인하지 못했습니다.');
+  }
+  function updateBrowserButtons(){const usable=browserJob?.status==='done'&&browserJob.results.length>0,read=browserJob?.mode==='search'||browserJob?.documents?.some(d=>d.status==='read');$('browser-summary-run').hidden=(browserJob?.mode||$('browser-mode').value)==='restaurants';$('browser-summary-run').disabled=!usable||!read||summaryRunning;$('browser-summary-run').textContent=browserJob?.summary?'결과 다시 정리':'AI로 정리';$('browser-share').disabled=!usable;}
   function renderResults(job){
+    if(job.mode==='restaurants'){$('browser-candidates').hidden=true;updateBrowserButtons();return;}
     $('browser-results').replaceChildren();job.results.forEach(r=>{const href=validLink(r.url);if(!href)return;const link=document.createElement('a'),host=document.createElement('small');link.className='result-card';link.textContent=r.title;link.href=href;host.textContent=new URL(href).hostname+(r.searchSources?.length?' · '+r.searchSources.join(', '):'');link.append(host);link.target='_blank';link.rel='noopener noreferrer';$('browser-results').append(link);});$('browser-candidates').hidden=!job.results.length;$('browser-candidates').querySelector('summary').textContent=`검색 후보 (${job.results.length})`;$('browser-candidates').open=job.mode==='search';updateBrowserButtons();
   }
   $('browser-form').onsubmit=async e=>{
     e.preventDefault();if(browserRunning)return;browserRunning=true;browserJob=null;browserSummary='';++summaryRevision;summaryRunning=false;$('browser-dialog').classList.remove('research-complete');
-    [...$('browser-form').elements,...$('browser-examples').querySelectorAll('button')].forEach(b=>b.disabled=true);updateBrowserButtons();$('browser-summary').hidden=true;$('browser-evidence').hidden=true;$('browser-candidates').hidden=true;$('browser-plan').hidden=true;$('browser-limitations').replaceChildren();$('browser-documents').replaceChildren();$('browser-steps').replaceChildren();$('browser-results').replaceChildren();$('browser-frame').hidden=true;delete $('browser-frame').dataset.revision;$('browser-empty').hidden=false;$('browser-note').textContent='조사 시작 중...';$('browser-live').textContent='연결 중';
+    [...$('browser-form').elements,...$('browser-examples').querySelectorAll('button')].forEach(b=>b.disabled=true);updateBrowserButtons();$('restaurant-results').hidden=true;$('browser-summary').hidden=true;$('browser-evidence').hidden=true;$('browser-candidates').hidden=true;$('browser-plan').hidden=true;$('browser-limitations').replaceChildren();$('browser-documents').replaceChildren();$('browser-steps').replaceChildren();$('browser-results').replaceChildren();$('browser-frame').hidden=true;delete $('browser-frame').dataset.revision;$('browser-empty').hidden=false;$('browser-note').textContent='조사 시작 중...';$('browser-live').textContent='연결 중';
     let eventCount=0;
     try{
-      browserJob=await api('/api/browser/jobs',{query:$('browser-query').value.trim(),provider:$('browser-source').value,mode:$('browser-mode').value});
+      const mode=$('browser-mode').value;browserJob=await api('/api/browser/jobs',{...(mode==='restaurants'?{region:$('restaurant-region').value.trim(),menu:$('restaurant-menu').value.trim()}:{query:$('browser-query').value.trim()}),provider:$('browser-source').value,mode});
       const end=Date.now()+300000;let failures=0;while(Date.now()<end){renderSteps(browserJob);browserJob.events.slice(eventCount).forEach(s=>activity('브라우저',s.text));eventCount=browserJob.events.length;if(browserJob.status!=='running')break;await new Promise(r=>setTimeout(r,600));try{browserJob=await api('/api/browser/jobs/'+browserJob.id);failures=0;}catch(err){if(++failures>=5)throw err;}}
       renderSteps(browserJob);renderResults(browserJob);if(browserJob.status==='running')throw new Error('조사가 지연되고 있습니다. 실행 기록을 확인해주세요.');if(browserJob.status==='error')throw new Error(browserJob.error);renderSummary(browserJob);
     }catch(error){$('browser-note').textContent=error.message;$('browser-live').textContent='오류';activity('브라우저',error.message);}
-    finally{browserRunning=false;[...$('browser-form').elements,...$('browser-examples').querySelectorAll('button')].forEach(b=>b.disabled=false);updateBrowserButtons();}
+    finally{browserRunning=false;[...$('browser-form').elements,...$('browser-examples').querySelectorAll('button')].forEach(b=>b.disabled=false);syncBrowserMode();updateBrowserButtons();}
   };
   $('browser-summary-run').onclick=async()=>{
     if(!browserJob?.results.length||summaryRunning)return;$('browser-summary').hidden=false;
@@ -160,6 +200,7 @@
     finally{if(revision===summaryRevision){summaryRunning=false;updateBrowserButtons();}}
   };
   $('browser-share').onclick=()=>openShare(status.telegram?.connected?'telegram':status.agentmail?.connected?'agentmail':'telegram',browserText(browserJob));
+  syncBrowserMode();
   async function loadInbox(){
     if(inboxLoading)return;inboxLoading=true;const revision=connectionRevision;$('inbox-refresh').disabled=true;$('inbox-status').textContent='받은편지함 확인 중...';$('inbox-messages').replaceChildren();
     try{const data=await api('/api/integrations/agentmail/messages');if(revision!==connectionRevision)return;$('inbox-status').textContent=data.messages.length?`${data.messages.length}개 메시지 · 최신순`:'아직 받은 메시지가 없습니다.';data.messages.forEach(m=>{const item=document.createElement('article'),title=document.createElement('strong'),meta=document.createElement('small'),body=document.createElement('p');item.className='inbox-item';title.textContent=m.subject;meta.textContent=[Array.isArray(m.from)?m.from.join(', '):m.from,m.at?new Date(m.at).toLocaleString('ko-KR'):''].filter(Boolean).join(' · ');body.textContent=m.preview;item.append(title,meta,body);$('inbox-messages').append(item);});activity('AgentMail',`${data.messages.length}개 메일 확인`);}

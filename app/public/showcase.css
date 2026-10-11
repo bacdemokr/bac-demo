@@ -257,6 +257,41 @@ body{height:auto;overflow:visible}
 #browser-form{display:block;margin-bottom:12px}
 #browser-form>label{font-size:12px;margin:0 0 8px}
 #browser-query{width:100%;resize:vertical;line-height:1.7;font-size:13px}
+#browser-question-fields label,#restaurant-fields label{display:block;font-size:12px;margin-bottom:8px}
+#restaurant-fields{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+#restaurant-fields input{width:100%;font-size:14px}
+.restaurant-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;flex-wrap:wrap}
+.restaurant-toolbar h3{font-size:14px}
+.restaurant-toolbar [role=group]{display:flex;gap:6px}
+.restaurant-toolbar button{font-size:11px;padding:7px 10px}
+.restaurant-toolbar button[aria-pressed=true]{border-color:var(--lime);color:var(--lime);background:#233528}
+#restaurant-results{margin:20px 0 24px;min-width:0}
+#restaurant-result-note{font-size:11px;color:var(--muted);margin:8px 0 12px}
+.restaurant-table-scroll{overflow-x:auto;border:1px solid #31473d;border-radius:10px;overscroll-behavior-x:contain}
+#restaurant-table{width:100%;min-width:600px;border-collapse:collapse;text-align:left;font-size:12px}
+#restaurant-table th{padding:12px 16px;background:#172b23;color:#acc4b8;font-weight:500}
+#restaurant-table td{padding:13px 16px;border-top:1px solid #293b33;vertical-align:middle}
+#restaurant-table tbody tr:hover{background:#192c234d}
+#restaurant-table td:first-child{width:42%}
+#restaurant-table strong{display:block;font-weight:600}
+#restaurant-table small{display:block;color:var(--muted);font-size:10px;margin-top:5px;line-height:1.6}
+#restaurant-table a{display:block;color:var(--mint);font-size:11px;white-space:nowrap;margin:4px 0}
+.restaurant-rating{color:var(--lime);font-variant-numeric:tabular-nums}
+#restaurant-errors{font-size:11px;color:#c7b997;line-height:1.8;margin:10px 0 0 17px}
+#restaurant-errors a{color:var(--mint)}
+@media(max-width:650px){#restaurant-fields{gap:10px}#restaurant-fields input{font-size:13px}.restaurant-toolbar button{font-size:10px}#restaurant-table td,#restaurant-table th{padding:11px 12px}}
+@media(max-width:650px){
+  #restaurant-table{min-width:0;display:block}
+  #restaurant-table thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+  #restaurant-table tbody{display:block}
+  #restaurant-table tr{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #293b33;padding:13px 14px;gap:12px}
+  #restaurant-table tr:first-child{border-top:0}
+  #restaurant-table td{display:block;border:0;padding:0;min-width:0}
+  #restaurant-table td:first-child{grid-column:1 / -1;width:auto}
+  #restaurant-table td[data-map]::before{content:attr(data-map);display:block;color:#9cb8aa;font-size:10px;margin-bottom:6px}
+  #restaurant-table td:last-child{grid-column:1 / -1;display:flex;gap:16px}
+  #restaurant-table td:first-child strong{font-size:13px}
+}
 .browser-options{display:flex;gap:8px;align-items:center;margin-top:10px}
 #browser-mode,#browser-source{width:148px;flex:0 0 auto}
 #browser-run{margin-left:auto;flex-shrink:0}
