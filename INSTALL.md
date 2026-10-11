@@ -87,7 +87,7 @@ The UI verifies the inbox with `GET /v0/inboxes/{inbox_id}`, reads message previ
 
 For startup configuration, set `AGENTMAIL_API_KEY` and `AGENTMAIL_INBOX_ID` in the gitignored `.env`. UI-entered credentials are memory-only. Reopening or reloading the page keeps the server connection; restarting the server requires re-entering UI credentials.
 
-This MailAgent viewer uses the AgentMail REST API. To let an OpenClaw agent call mail tools directly, configure the [official AgentMail MCP integration](https://www.agentmail.to/docs/integrations/mcp) separately, or follow the AgentMail skill setup in the linked Build-a-Claw guide. Do not describe the viewer's direct API calls as MCP calls.
+This MailAgent viewer uses the AgentMail REST API. To let an OpenClaw agent call mail tools directly, configure the [official AgentMail MCP integration](https://www.agentmail.to/docs/integrations/mcp) separately, or follow the AgentMail skill setup in the linked demo guide. Do not describe the viewer's direct API calls as MCP calls.
 
 ## Local verification
 

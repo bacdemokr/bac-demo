@@ -1,4 +1,4 @@
-# Build-a-Claw Agent Playground
+# Agentic AI Demo
 
 NVIDIA Spark의 로컬 OpenClaw gateway를 사용하는 에이전트 데모입니다. 캐릭터를 선택해 대화하거나, 미션 카드에서 브라우저 탐색·에이전트 협업·논문 조회·이메일 연결을 시작하세요.
 
@@ -64,7 +64,7 @@ TEST_CHROMIUM_EXECUTABLE=/path/to/chromium npm run test:browser
 
 ## 참고 구현
 
-- [Build-a-Claw 안내](https://hackmd.io/WhaCGaC5RH6vsG4z_vmYqg): Telegram·브라우저·AgentMail 활용 흐름.
+- [데모 구성 안내](https://hackmd.io/WhaCGaC5RH6vsG4z_vmYqg): Telegram·브라우저·AgentMail 활용 흐름.
 - [ai-studio](https://github.com/bacdemokr/ai-studio/tree/94fd9a31f49c245dd4ff6270b3a0fb4ac33313a4): Bot token + Chat ID 설정 흐름 참고.
 - [bac-demo-kr](https://github.com/yechank-nvidia/bac-demo-kr/tree/a205ea8b228a6e77f88199649f3f9b6dc55f8655): 탐색 팝업·진행 표시 흐름 참고. 여기서는 결과 재생 대신 실제 CDP 화면을 캡처합니다.
 - [AgentMail 공식 SDK](https://github.com/agentmail-to/agentmail-node/tree/e344c53d0e8777ee353759c141f85e23d6e71a99): Inbox 조회, 메시지 목록, 발송 API 경로 확인.

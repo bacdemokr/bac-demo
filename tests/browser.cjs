@@ -47,7 +47,7 @@ async function freePort(){const s=http.createServer();await new Promise(r=>s.lis
     await page.route('**/api/integrations/agentmail/messages',r=>r.fulfill({json:{messages:[{id:'m1',subject:'<img src=x onerror=alert(1)>',from:'fixture@example.com',preview:'<script>unsafe()</script>',at:new Date().toISOString()}]}}));
     await page.locator('[data-mission=mail]').click();await page.locator('.inbox-item').waitFor();assert.equal(await page.locator('.inbox-item img,.inbox-item script').count(),0);
     await page.locator('#mail-new').click();await page.locator('#share-to').fill('you@example.com');await page.locator('#share-text').fill('Reviewed fixture email.');
-    let sends=0;await page.route('**/api/integrations/agentmail/send',r=>{sends++;assert.deepEqual(r.request().postDataJSON(),{to:'you@example.com',subject:'Build-a-Claw 리서치 결과',text:'Reviewed fixture email.'});return r.fulfill({json:{ok:true,messageId:'fixture-message'}});});
+    let sends=0;await page.route('**/api/integrations/agentmail/send',r=>{sends++;assert.deepEqual(r.request().postDataJSON(),{to:'you@example.com',subject:'Agentic AI Demo 결과',text:'Reviewed fixture email.'});return r.fulfill({json:{ok:true,messageId:'fixture-message'}});});
     assert.equal(sends,0);await page.locator('#share-send').click();await page.waitForFunction(()=>document.querySelector('#share-status').textContent.includes('fixture-message'));assert.equal(sends,1);
     await page.locator('[data-close=share-dialog]').click();await page.locator('[data-close=inbox-dialog]').click();
     await page.locator('[data-agent=telegram]').click();await page.locator('#input').fill('fixture chat');let tgSends=0;
