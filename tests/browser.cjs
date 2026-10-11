@@ -73,7 +73,7 @@ async function freePort(){const s=http.createServer();await new Promise(r=>s.lis
     await page.getByRole('button',{name:'AgentMail 연결',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#mail-status').textContent.includes('연결됨'));
     assert.equal(await page.locator('#mail-key').inputValue(),'');assert.equal(await page.evaluate(()=>Object.keys(localStorage).length),0);
     await page.route('**/api/showcase/gateway',r=>{assert.equal(r.request().method(),'POST');assert.equal(r.request().postDataJSON().token,'fixture-gateway-token');return r.fulfill({json:{configured:true,reachable:true,url:'http://127.0.0.1:18789'}});});
-    await page.locator('#tab-gateway').click();await page.locator('#gw-token').fill('fixture-gateway-token');await page.getByRole('button',{name:'Gateway 연결',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#gw-status').textContent.includes('인증 정보 설정됨'));assert.equal(await page.locator('#gw-token').inputValue(),'');assert.equal(await page.evaluate(()=>Object.keys(localStorage).length),0);
+    await page.locator('#tab-gateway').click();await page.locator('#gw-token').fill('fixture-gateway-token');await page.getByRole('button',{name:'AI 연결',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#gw-status').textContent.includes('인증 정보 설정됨'));assert.equal(await page.locator('#gw-token').inputValue(),'');assert.equal(await page.evaluate(()=>Object.keys(localStorage).length),0);
     await page.locator('[data-close=settings-dialog]').click();
     await page.route('**/api/integrations/agentmail/messages',r=>r.fulfill({json:{messages:[{id:'m1',subject:'<img src=x onerror=alert(1)>',from:'fixture@example.com',preview:'<script>unsafe()</script>',at:new Date().toISOString()}]}}));
     await page.locator('[data-mission=mail]').click();await page.locator('.inbox-item').waitFor();assert.equal(await page.locator('.inbox-item img,.inbox-item script').count(),0);
@@ -146,7 +146,7 @@ async function freePort(){const s=http.createServer();await new Promise(r=>s.lis
     });
     await new Promise(r=>researchFixture.listen(0,'127.0.0.1',r));
     const researchBase='http://127.0.0.1:'+researchFixture.address().port;
-    const researchSources={naver:{name:'Naver fixture',url:q=>researchBase+'/search?q='+encodeURIComponent(q)},google:{name:'Google fixture',url:q=>researchBase+'/other?q='+encodeURIComponent(q)}};
+    const researchSources={naver:{name:'Naver fixture',url:q=>researchBase+'/search?q='+encodeURIComponent(q)},daum:{name:'Daum fixture',url:q=>researchBase+'/other?q='+encodeURIComponent(q)},google:{name:'Google fixture',url:()=>{throw new Error('Automatic research must never choose Google');}}};
     const prompts=[],researchJobs=new BrowserJobs({endpoint:'http://127.0.0.1:'+cdpPort,sources:researchSources,ask:()=>async(system,user)=>{
       prompts.push({system,user});
       if(system.startsWith('Turn the user'))return JSON.stringify({queries:['Alpha official','Beta official'],objective:'Compare actual articles'});
@@ -158,6 +158,7 @@ async function freePort(){const s=http.createServer();await new Promise(r=>s.lis
       for(let i=0;i<400&&researchJobs.public(started.id).status==='running';i++)await wait(100);
       const done=researchJobs.public(started.id);assert.equal(done.status,'done');assert.equal(done.searches.length,4);assert.equal(done.results.length,4);assert.equal(done.documents.filter(d=>d.status==='read').length,3);assert(done.documents.every(d=>d.published==='2026-10-09'));assert(done.summary.answer.includes('[1]'));assert(done.documents.every(d=>d.text===undefined));assert.equal(prompts.length,3);assert.equal(chrome.isConnected(),true);
       const evidence=researchJobs.evidence(started.id);assert(evidence.documents.every(d=>!d.text.includes('Navigation must be excluded')));
+      assert.deepEqual([...new Set(done.searches.map(s=>s.source))],['Naver fixture','Daum fixture']);
       const originalResult=done.results[0];assert.equal(originalResult.searchSources.length,2);
       console.log('Research passed: question planning, two queries across two sources, deduplication, three actual article navigations, publication dates, evidence-only cited synthesis.');
       firstArticleBlocked=true;

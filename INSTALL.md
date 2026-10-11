@@ -19,7 +19,7 @@ For OpenClaw 2026.9.4, configure `agents.entries` with `bac`, `git`, `pm`, and `
 
 Enable `gateway.http.endpoints.chatCompletions.enabled`. The server routes through `openclaw/<agent-id>` with agent-scoped session keys. Older OpenClaw versions may use `agents.list`; use the configuration schema of your running gateway.
 
-You can connect the Gateway URL and token from **연결 설정 → Gateway** for the current server session. Only the address response is checked on connection; model access is verified by an actual task. For persistent configuration, store the gateway auth token in `app/.gw_token` and a GitHub token with access to the target repository in `app/.gh_token`. Set both files to mode 600. Environment alternatives are `GATEWAY_TOKEN` and `GITHUB_TOKEN` for the web server.
+You can connect the Gateway URL and token from **연결 설정 → AI 연결** for the current server session. Only the address response is checked on connection; model access is verified by an actual task. For persistent configuration, store the gateway auth token in `app/.gw_token` and a GitHub token with access to the target repository in `app/.gh_token`. Set both files to mode 600. Environment alternatives are `GATEWAY_TOKEN` and `GITHUB_TOKEN` for the web server.
 
 For GitHub MCP, pull `ghcr.io/github/github-mcp-server:latest`, then configure an OpenClaw `mcp.servers` entry whose command is the absolute path to `scripts/github-mcp.sh`. This script reads `app/.gh_token` and passes it to Docker. Validate the gateway config and reload it.
 
@@ -45,7 +45,7 @@ bash scripts/ensure-cdp.sh
 
 ## Browser showcase
 
-The default browser workflow accepts a research question with general, news, and comparison modes. With a Gateway it plans up to two focused queries, selects relevant sources, and synthesizes a cited answer. It checks two search engines in automatic mode, deduplicates candidates, opens up to five candidate articles until three readable pages are found, and extracts rendered body text and publication metadata. Unreadable pages and missing dates are reported. Search snippets are not treated as article evidence. Without a Gateway it still collects readable evidence; **AI로 정리** can synthesize it after you connect. The optional quick-search mode keeps the previous single-search behavior.
+The default browser workflow accepts a research question with general, news, and comparison modes. With a Gateway it plans up to two focused queries, selects relevant sources, and synthesizes a cited answer. It uses Naver and Daum in automatic mode; Google is used only when manually selected. It deduplicates candidates, opens up to five candidate articles until three readable pages are found, and extracts rendered body text and publication metadata. Unreadable pages and missing dates are reported. Search snippets are not treated as article evidence. Without a Gateway it still collects readable evidence; **AI로 정리** can synthesize it after you connect. The optional quick-search mode keeps the previous single-search behavior.
 
 The browser viewer connects to `BROWSER_CDP_URL` (default `http://127.0.0.1:9222`). It opens a worker tab, captures the actual page while navigating and scrolling, extracts links, and then closes its worker tab. Chromium remains running. Only one search can run at a time; completed captures are kept in memory for up to 12 jobs and removed as new jobs arrive.
 

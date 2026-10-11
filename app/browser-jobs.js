@@ -46,7 +46,9 @@ class BrowserJobs {
     if (this.busy) throw new Problem("브라우저가 탐색 중입니다. 현재 작업이 끝난 뒤 실행해주세요.", 409);
     for (const [id, job] of this.jobs) if (Date.now() - job.at > 600000) this.jobs.delete(id);
     while (this.jobs.size >= 12) this.jobs.delete(this.jobs.keys().next().value);
-    const source = this.sources[provider === "auto" ? Object.keys(this.sources)[0] : provider];
+    const sourceKey=provider==='auto'?['naver','daum',...Object.keys(this.sources).filter(key=>key!=='google')].find(key=>this.sources[key]):provider;
+    if(!sourceKey)throw new Problem('자동 조사에 사용할 검색원이 없습니다. Naver 또는 Daum을 연결해주세요.');
+    const source = this.sources[sourceKey];
     const job = { id: randomUUID(), query: query.trim(), provider, mode, source: provider === "auto" && mode !== "search" ? "여러 검색원" : source.name, url: source.url(query.trim()), status: "running", events: [], results: [], documents: [], searches: [], plan:null, summary:null, frame: null, revision: 0, at: Date.now() };
     this.jobs.set(job.id, job); this.busy = true;
     (mode === "search" ? this.run(job) : this.research(job)).finally(() => { this.busy = false; });
@@ -76,8 +78,8 @@ class BrowserJobs {
       this.event(job,"plan","조사 요청을 검색 질문으로 정리");
       try {job.plan=await planResearch(job.query,job.mode,ask);} catch {job.plan=await planResearch(job.query,job.mode,null);job.warnings=['AI 검색 계획을 만들지 못해 요청에서 검색어를 추렸습니다.'];}
       this.event(job,"planned",`검색어: ${job.plan.queries.join(' / ')}`);
-      const keys=job.provider==='auto'?(job.mode==='news'?['naver','daum']:['naver','google']).filter(k=>this.sources[k]):[job.provider];
-      if(!keys.length)keys.push(...Object.keys(this.sources).slice(0,2));
+      const keys=job.provider==='auto'?['naver','daum'].filter(k=>this.sources[k]):[job.provider];
+      if(!keys.length)keys.push(...Object.keys(this.sources).filter(key=>key!=='google').slice(0,2));
       const groups=[];
       for(const query of job.plan.queries)for(const key of keys){
         if(Date.now()-started>150000)break;
@@ -111,7 +113,7 @@ class BrowserJobs {
       }
       const count=job.documents.filter(d=>d.status==='read').length;
       if(ask&&count){this.event(job,"synthesize","읽은 원문을 대조하고 출처를 붙여 답변 작성");try{job.summary=await summarizeResearch(job.query,job.mode,job.documents,ask);}catch(e){job.summaryError=e.message;this.event(job,"summary-error","AI 정리를 완료하지 못했습니다. 읽은 근거는 아래에서 확인할 수 있습니다.");}}
-      else job.summaryError=count?'AI 정리는 Gateway 연결 후 가능합니다. 아래에는 실제 읽은 원문을 표시합니다.':'읽을 수 있는 원문이 없어 답변을 만들지 않았습니다.';
+      else job.summaryError=count?'AI 정리는 OpenClaw 연결 후 가능합니다. 아래에는 실제 읽은 원문을 표시합니다.':'읽을 수 있는 원문이 없어 답변을 만들지 않았습니다.';
       job.note=`검색원 ${groups.length}회 확인 · 후보 ${job.results.length}개 · 원문 ${count}/${job.documents.length}개 읽음`;
       this.event(job,"done","조사 완료");
     }catch(error){job.status='error';job.error=job.stage==='connect'?'Chromium에 연결할 수 없습니다. 설치 안내에 따라 CDP 브라우저를 실행해주세요.':error instanceof Problem?error.message:'조사를 완료하지 못했습니다. 실행 기록과 네트워크 상태를 확인해주세요.';this.event(job,"error",job.error);}
