@@ -41,7 +41,7 @@ function loadAPIConfig({ root = path.resolve(__dirname, '..'), env = process.env
   }
   const g = config.github || {}, t = config.telegram || {}, m = config.agentmail || {};
   try {
-    validateGitHub({ token: g.token || 'validation-placeholder', owner: g.owner || env.GH_OWNER || 'bacdemokr', repo: g.repo || env.GH_REPO || 'bac-demo' });
+    validateGitHub({ token: g.token || 'validation-placeholder', owner: g.token?(g.owner||(g.repo?'':'account')):g.owner || env.GH_OWNER || 'bacdemokr', repo: g.token?(g.repo||'connection'):g.repo || env.GH_REPO || 'bac-demo' });
   } catch { throw new ConfigError('api.json의 GitHub 토큰 또는 저장소 이름을 확인해주세요.'); }
   if (t.botToken && (!/^\d{5,15}:[A-Za-z0-9_-]{20,100}$/.test(t.botToken) || !/^-?\d{1,20}$/.test(t.chatId)))
     throw new ConfigError('api.json의 Telegram botToken과 chatId를 함께 확인해주세요.');
@@ -55,7 +55,7 @@ function loadConnections({ root = path.resolve(__dirname, '..'), env = process.e
   const read = file => { try { return fs.readFileSync(file, 'utf8').trim(); } catch { return ''; } };
   const telegramToken = env.TG_BOT_TOKEN || read(path.join(root, 'app', '.tg_token'));
   return {
-    github: { ...(g.token ? { token: g.token, source: 'config' } : loadGitHubCredential({ appDir: path.join(root, 'app'), env })), owner: g.owner || env.GH_OWNER || 'bacdemokr', repo: g.repo || env.GH_REPO || 'bac-demo' },
+    github: { ...(g.token ? { token: g.token, source: 'config' } : loadGitHubCredential({ appDir: path.join(root, 'app'), env })), owner: g.token?g.owner||'':g.owner || env.GH_OWNER || '', repo: g.token?g.repo||'':g.repo || env.GH_REPO || '' },
     telegram: t.botToken ? { token: t.botToken, chatId: t.chatId, source: 'config' } : { token: telegramToken, chatId: env.TG_CHAT_ID || t.chatId || '', source: telegramToken ? (env.TG_BOT_TOKEN ? 'environment' : 'file') : 'none' },
     agentmail: m.apiKey ? { apiKey: m.apiKey, inboxId: m.inboxId, source: 'config' } : { apiKey: env.AGENTMAIL_API_KEY || '', inboxId: env.AGENTMAIL_INBOX_ID || m.inboxId || '', source: env.AGENTMAIL_API_KEY ? 'environment' : 'none' },
   };

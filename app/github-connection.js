@@ -1,6 +1,7 @@
 'use strict';
 const fs=require('node:fs');
 const path=require('node:path');
+const {randomUUID}=require('node:crypto');
 const {Problem}=require('./integrations');
 
 function loadGitHubCredential({appDir=__dirname,env=process.env,legacyFile='/tmp/gh_token.txt'}={}){
@@ -17,15 +18,16 @@ function validateGitHub({token,owner,repo}){
   return {token:token.trim(),owner:owner.trim(),repo:repo.trim()};
 }
 class GitHubConnection{
-  constructor({token='',owner='bacdemokr',repo='bac-demo',source='environment',fetcher=fetch,canConfigure=()=>true}={}){
+  constructor({token='',owner='',repo='',source='environment',fetcher=fetch,canConfigure=()=>true}={}){
     this.defaults={owner,repo};this.fetcher=fetcher;this.canConfigure=canConfigure;this.attempt=0;this.revision=0;this.error='';
     this.connection=token?{token,owner,repo,source,verified:false}:null;
+    this.forking=false;this.forks=new Map();
   }
   public(){
     const c=this.connection;
-    return {configured:!!c,connected:!!c?.verified,owner:c?.owner||this.defaults.owner,repo:c?.repo||this.defaults.repo,login:c?.login||'',source:c?.source||'none',canWrite:!!c?.verified&&c.canWrite,defaultBranch:c?.defaultBranch||'',error:this.error};
+    return {configured:!!c,connected:!!c?.verified,owner:c?(c.owner||c.login||''):this.defaults.owner,repo:c?c.repo:this.defaults.repo,login:c?.login||'',source:c?.source||'none',canWrite:!!c?.verified&&!!c.canWrite,defaultBranch:c?.defaultBranch||'',forking:this.forking,error:this.error};
   }
-  requireConnection(){if(!this.connection?.verified)throw new Problem('연결 설정에서 GitHub 토큰과 저장소를 연결해주세요.',409);return this.connection;}
+  requireConnection(){if(!this.connection?.verified)throw new Problem('연결 설정에서 GitHub 토큰을 연결해주세요.',409);return this.connection;}
   async request(c,method,resource,body){
     let response;
     try{response=await this.fetcher('https://api.github.com'+resource,{method,headers:{Authorization:'Bearer '+c.token,Accept:'application/vnd.github+json','Content-Type':'application/json','User-Agent':'Agentic-AI-Demo'},redirect:'error',signal:AbortSignal.timeout(12000),...(body?{body:JSON.stringify(body)}:{})});}
@@ -34,21 +36,68 @@ class GitHubConnection{
     try{const data=await response.json();if(!data||typeof data!=='object')throw Error();return data;}catch{throw new Problem('GitHub 응답을 확인할 수 없습니다.',502);}
   }
   async verify(candidate){
-    const c=validateGitHub(candidate),user=await this.request(c,'GET','/user');
+    const selected=!!candidate.repo;
+    const checked=validateGitHub({...candidate,owner:selected?candidate.owner:'account',repo:selected?candidate.repo:'connection'});
+    const c={...checked,owner:selected?checked.owner:'',repo:selected?checked.repo:''},user=await this.request(c,'GET','/user');
     if(typeof user.login!=='string'||!user.login)throw new Problem('GitHub 계정 정보를 확인할 수 없습니다.',502);
+    validateGitHub({token:c.token,owner:user.login,repo:'account'});
+    if(!selected)return {...c,source:candidate.source,verified:true,login:user.login,defaultBranch:'',canWrite:false};
     const repository=await this.request(c,'GET',`/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}`);
     if(typeof repository.name!=='string'||repository.name.toLowerCase()!==c.repo.toLowerCase()||repository.owner?.login?.toLowerCase()!==c.owner.toLowerCase())throw new Problem('GitHub 저장소 정보를 확인할 수 없습니다.',502);
     if(!repository.default_branch)throw new Problem('저장소에 초기 커밋과 기본 브랜치를 만든 뒤 연결해주세요.',409);
     return {...c,source:candidate.source,verified:true,login:user.login,defaultBranch:repository.default_branch,canWrite:repository.permissions?.push!==false&&!repository.archived&&!repository.disabled};
   }
   async configure({token,owner,repo,disconnect}){
-    if(!this.canConfigure())throw new Problem('협업 작업이 진행 중입니다. 완료 후 GitHub 연결을 변경해주세요.',409);
+    if(!this.canConfigure()||this.forking)throw new Problem('GitHub 작업이 진행 중입니다. 완료 후 연결을 변경해주세요.',409);
     const attempt=++this.attempt;
     if(disconnect===true){this.connection=null;this.error='';++this.revision;return this.public();}
     const verified=await this.verify({token,owner,repo,source:'runtime'});
     if(attempt!==this.attempt)throw new Problem('GitHub 연결 설정이 변경되었습니다. 다시 확인해주세요.',409);
-    if(!this.canConfigure())throw new Problem('협업 작업이 진행 중입니다. 완료 후 GitHub 연결을 변경해주세요.',409);
+    if(!this.canConfigure()||this.forking)throw new Problem('GitHub 작업이 진행 중입니다. 완료 후 연결을 변경해주세요.',409);
     this.connection=verified;this.error='';++this.revision;return this.public();
+  }
+  async repositories(query=''){
+    const c=this.requireConnection();
+    if(typeof query!=='string'||query.length>200)throw new Problem('검색어는 200자 이내로 입력해주세요.');
+    const text=query.trim().replace(/^https:\/\/github\.com\//i,'').replace(/\.git\/?$/,'').replace(/\/$/,'');
+    const exact=/^[A-Za-z0-9-]+\/[A-Za-z0-9_.-]+$/.test(text);
+    const q=(exact?'repo:'+text:text||'language:JavaScript stars:100..5000 size:1..2000')+' is:public archived:false fork:false';
+    const data=await this.request(c,'GET','/search/repositories?q='+encodeURIComponent(q)+'&per_page=20');
+    if(!Array.isArray(data.items))throw new Problem('저장소 검색 결과를 확인할 수 없습니다.',502);
+    return {repositories:data.items.filter(r=>r.private===false&&!r.archived&&!r.disabled).map(r=>({name:r.full_name,description:r.description||'',stars:r.stargazers_count||0,url:r.html_url}))};
+  }
+  createFork({repository}){
+    const c=this.requireConnection();
+    if(this.forking||!this.canConfigure())throw new Problem('다른 GitHub 작업이 진행 중입니다.',409);
+    if(typeof repository!=='string')throw new Problem('Fork할 공개 저장소를 선택해주세요.');
+    const [owner,repo,...rest]=repository.split('/');validateGitHub({token:c.token,owner,repo});
+    if(rest.length||owner.toLowerCase()===c.login.toLowerCase())throw new Problem('다른 계정의 공개 저장소를 선택해주세요.');
+    for(const [id,job]of this.forks)if(job.status!=='running'&&this.forks.size>=12)this.forks.delete(id);
+    const job={id:randomUUID(),status:'running',repository:'',url:'',error:'',step:'원본 저장소 확인'};this.forks.set(job.id,job);this.forking=true;
+    this.fork(c,owner,repo,job).then(()=>{job.status='done';}).catch(error=>{job.status='error';job.error=error instanceof Problem?error.message:'Fork를 완료하지 못했습니다. GitHub에서 결과를 확인해주세요.';}).finally(()=>{this.forking=false;});
+    return {...job};
+  }
+  forkStatus(id){const job=this.forks.get(id);if(!job)throw new Problem('Fork 작업이 만료되었습니다.',404);return {...job};}
+  async fork(c,owner,repo,job){
+    const base='/repos/'+encodeURIComponent(owner)+'/'+encodeURIComponent(repo),source=await this.request(c,'GET',base);
+    if(source.private!==false||source.archived||source.disabled||!source.default_branch||source.owner?.login?.toLowerCase()!==owner.toLowerCase()||source.name?.toLowerCase()!==repo.toLowerCase())throw new Problem('사용 가능한 공개 저장소만 Fork할 수 있습니다.');
+    job.step='내 계정에 Fork 요청';
+    const result=await this.request(c,'POST',base+'/forks',{default_branch_only:true});
+    if(result.owner?.login?.toLowerCase()!==c.login.toLowerCase()||!result.name||!result.fork)throw new Problem('Fork 결과를 확인할 수 없습니다. GitHub에서 확인해주세요.',502);
+    validateGitHub({token:c.token,owner:c.login,repo:result.name});
+    job.repository=c.login+'/'+result.name;job.url='https://github.com/'+job.repository;job.step='Fork 준비 확인';
+    const deadline=Date.now()+60000;
+    while(Date.now()<deadline){
+      try{
+        const target=await this.verify({...c,owner:c.login,repo:result.name});
+        const info=await this.request(target,'GET','/repos/'+job.repository);
+        if(!info.fork||info.parent?.full_name?.toLowerCase()!==(owner+'/'+repo).toLowerCase())throw new Problem('원본과 Fork 저장소의 연결을 확인할 수 없습니다.',409);
+        const ref=await this.request(target,'GET','/repos/'+job.repository+'/git/ref/heads/'+encodeURIComponent(target.defaultBranch));
+        if(ref.object?.sha){this.connection=target;++this.revision;job.step='Fork 완료 · 작업 저장소로 선택됨';return;}
+      }catch(error){if(error.status===409&&!error.message.includes('초기 커밋'))throw error;}
+      await new Promise(resolve=>setTimeout(resolve,1000));
+    }
+    throw new Problem('Fork 요청은 접수됐지만 준비 확인이 늦어지고 있습니다. 표시된 GitHub 링크에서 상태를 확인해주세요.',504);
   }
   async start(){
     const c=this.connection,attempt=this.attempt;if(!c)return;

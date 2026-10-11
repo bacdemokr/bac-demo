@@ -2,7 +2,7 @@ const assert=require('node:assert/strict'),http=require('node:http');
 const {createShowcase}=require('../app/showcase-api');
 const {GitHubConnection}=require('../app/github-connection');
 module.exports=async({page})=>{
- const calls=[],github=new GitHubConnection({fetcher:async(url,options)=>{calls.push({url,method:options.method});const body=url.endsWith('/user')?{login:'fixture-user'}:{owner:{login:'fixture-user'},name:'fixture-repo',default_branch:'main',permissions:{push:true}};return new Response(JSON.stringify(body),{status:200});}});
+ const calls=[],github=new GitHubConnection({fetcher:async(url,options)=>{calls.push({url,method:options.method});const body=url.endsWith('/user')?{login:'fixture-user'}:url.includes('/search/repositories?')?{items:[{full_name:'source-owner/source-repo',private:false,description:'Fork demo fixture',stargazers_count:12}]}:url.endsWith('/repos/source-owner/source-repo')?{owner:{login:'source-owner'},name:'source-repo',private:false,default_branch:'main'}:url.includes('/git/ref/heads/main')?{object:{sha:'fixture-sha'}}:{owner:{login:'fixture-user'},name:'fixture-repo',fork:true,parent:{full_name:'source-owner/source-repo'},default_branch:'main',permissions:{push:true}};return new Response(JSON.stringify(body),{status:200});}});
  const app=createShowcase({github}),server=http.createServer(async(req,res)=>{if(!await app.handle(req,res)){res.writeHead(404);res.end();}});
  await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port;
  try{
@@ -10,7 +10,7 @@ module.exports=async({page})=>{
   await page.route('**/api/showcase/status',r=>r.fulfill({json:{gateway:{reachable:true,configured:true,agents:{git:false}},github:github.public(),team:{configured:github.public().connected&&github.public().canWrite,repository:'fixture-user/fixture-repo'},telegram:{},agentmail:{}}}));
   await page.route('**/api/integrations/github',async route=>{const request=route.request(),response=await fetch(base+'/api/integrations/github',{method:request.method(),...(request.method()==='POST'?{headers:{'Content-Type':'application/json'},body:request.postData()}:{})});await route.fulfill({status:response.status,json:await response.json()});});
   await page.setViewportSize({width:1440,height:900});await page.locator('#settings-open').click();await page.locator('#tab-github').click();
-  assert.equal(await page.locator('#gh-token').getAttribute('type'),'password');await page.locator('#gh-token').fill('fixture_browser_private_token');await page.locator('#gh-repository').fill('fixture-user/fixture-repo');await page.getByRole('button',{name:'GitHub 연결',exact:true}).click();
+  assert.equal(await page.locator('#gh-token').getAttribute('type'),'password');await page.locator('#gh-token').fill('fixture_browser_private_token');await page.locator('#github-form summary').click();await page.locator('#gh-repository').fill('fixture-user/fixture-repo');await page.getByRole('button',{name:'GitHub 연결',exact:true}).click();
   await page.waitForFunction(()=>document.querySelector('#gh-status').textContent.includes('연결됨'));assert.equal(await page.locator('#gh-token').inputValue(),'');assert.equal(calls.length,2);assert(calls.every(c=>c.method==='GET'));
   assert.equal(await page.evaluate(()=>Object.keys(localStorage).length+Object.keys(sessionStorage).length),0);
   await page.locator('[data-close=settings-dialog]').click();await page.locator('[data-agent=github]').click();assert(!await page.locator('#input').isDisabled());assert((await page.locator('#chat-role').textContent()).includes('GitHub API'));
@@ -18,6 +18,16 @@ module.exports=async({page})=>{
   await page.setViewportSize({width:390,height:844});assert(await page.evaluate(()=>document.querySelector('#settings-dialog').scrollWidth<=document.querySelector('#settings-dialog').clientWidth));
   await page.locator('#gh-token').fill('unused_draft_token');await page.locator('[data-close=settings-dialog]').click();await page.locator('#settings-open').click();await page.locator('#tab-github').click();assert.equal(await page.locator('#gh-token').inputValue(),'');
   await page.locator('#gh-disconnect').click();await page.waitForFunction(()=>document.querySelector('#gh-status').textContent==='연결 전');assert.equal(github.public().configured,false);assert.equal(calls.length,2);
+  await page.locator('#gh-repository').fill('');await page.locator('#gh-token').fill('fixture_browser_private_token');await page.getByRole('button',{name:'GitHub 연결',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('#gh-status').textContent.includes('@fixture-user'));assert.equal(calls.length,3);
+  await page.route('**/api/integrations/github/repositories?*',async route=>{const response=await fetch(base+new URL(route.request().url()).pathname+new URL(route.request().url()).search);await route.fulfill({status:response.status,json:await response.json()});});
+  await page.route('**/api/integrations/github/forks**',async route=>{const request=route.request(),response=await fetch(base+new URL(request.url()).pathname,{method:request.method(),...(request.method()==='POST'?{headers:{'Content-Type':'application/json'},body:request.postData()}:{})});await route.fulfill({status:response.status,json:await response.json()});});
+  await page.locator('#gh-random').click();await page.waitForFunction(()=>document.querySelector('#gh-source').value==='source-owner/source-repo');assert(calls.every(c=>c.method==='GET'));
+  await page.locator('#gh-fork-action').click();await page.waitForFunction(()=>document.querySelector('#gh-fork-status').textContent.includes('Fork 완료'));
+  assert.equal(await page.locator('#gh-fork-link').getAttribute('href'),'https://github.com/fixture-user/fixture-repo');assert.equal(calls.filter(c=>c.method==='POST').length,1);
+  await page.locator('#gh-work').click();assert.equal(await page.evaluate(()=>window.BacDemo.getActive()?.id),'multiagent');assert(!await page.locator('#input').isDisabled());
+  await page.locator('#settings-open').click();
+  console.log('Fork demo passed: token-only account, public recommendation, explicit fork only, owned target selection and ready collaboration input.');
   await page.route('**/api/showcase/status',r=>r.fulfill({json:{gateway:{reachable:true,configured:true,agents:{git:false}},github:{configured:true,connected:true,owner:'fixture-user',repo:'fixture-repo',canWrite:true,source:'config'},team:{configured:true,repository:'fixture-user/fixture-repo'},telegram:{configured:true,connected:true,chatId:'12345',bot:'json_bot',source:'config'},agentmail:{configured:true,connected:true,inboxId:'fixture@agentmail.to',source:'config'}}}));
   await page.locator('[data-close=settings-dialog]').click();await page.locator('#settings-open').click();
   for(const [tab,statusId,keyId] of [['telegram','tg-status','tg-token'],['agentmail','mail-status','mail-key'],['github','gh-status','gh-token']]){

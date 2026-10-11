@@ -28,6 +28,10 @@ test('custom configuration paths and numeric safe Chat IDs work; explicitly miss
   assert.equal(loadAPIConfig({ root, env: { BAC_API_CONFIG: 'custom.json' } }).telegram.chatId, '-12345');
   assert.throws(() => loadAPIConfig({ root, env: { BAC_API_CONFIG: 'missing.json' } }), /읽을 수 없습니다/);
 });
+test('JSON GitHub token alone connects an account despite old fixed-target environment defaults',t=>{
+  const root=temporary(t);fs.writeFileSync(path.join(root,'api.json'),JSON.stringify({github:{token:'json-secret'}}));
+  const c=loadConnections({root,env:{GH_OWNER:'old-owner',GH_REPO:'old-repo'}});assert.equal(c.github.owner,'');assert.equal(c.github.repo,'');assert.equal(c.github.token,'json-secret');
+});
 test('bad JSON, typos, unsafe values and incomplete providers fail without quoting secrets', t => {
   const root = temporary(t), file = path.join(root, 'api.json'), secret = 'sensitive-do-not-print';
   const samples = [secret + '{', null, [], { unknown: secret }, { github: { unknown: secret } }, { github: { token: secret + '\nheader', owner: 'owner', repo: 'repo' } }, { github: { token: secret, owner: '../owner' } }, { telegram: { botToken: secret, chatId: 'not-numeric' } }, { agentmail: { apiKey: secret } }, { agentmail: { apiKey: secret, inboxId: 'unsafe/path' } }];

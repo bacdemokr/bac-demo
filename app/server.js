@@ -296,6 +296,7 @@ async function getArxivTop3() {
 let _repoCache = { at: 0, data: null, revision:-1 };
 async function getRepos(connection) {
   if(connection){
+    if(!connection.repo){const data=await github.request(connection,'GET',`/users/${encodeURIComponent(connection.login)}/repos?per_page=30&sort=updated`);return Array.isArray(data)?data.map(r=>({name:r.full_name,description:r.description,url:r.html_url,fork:r.fork})):[];}
     const c=connection,data=await github.request(c,'GET',`/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}`);
     return [{name:data.name,description:data.description,language:data.language,stars:data.stargazers_count,url:data.html_url,fork:data.fork,updated:data.updated_at}];
   }
@@ -356,7 +357,7 @@ async function chatWorker(parsed) {
   }
   if(cfg.live==='github'){
     sys.push({role:'system',content:'Configured repositories: '+JSON.stringify(await getRepos(connection))});
-    sys.push({role:'system',content:`The currently selected repository is ${ghContext.owner}/${ghContext.repo}. Use this repository for the user request unless they explicitly specify another.`});
+    sys.push({role:'system',content:ghContext.repo?`The currently selected repository is ${ghContext.owner}/${ghContext.repo}. Use this repository unless the user specifies another.`:'No fixed repository is selected. The app supports public repository search and explicit forking in Connection settings -> GitHub. Do not assume a target repository.'});
     if(!gatewayRuntime.agents.git)sys.push({role:'system',content:'GitHub MCP is not configured for this turn. The app supplied read-only repository metadata through the GitHub REST API. Answer from this data only. Do not claim to inspect issues, edit files or create PRs through tools. Direct PR creation requests to the app agent collaboration menu.'});
   }
   if(cfg.live==='arxiv'){const papers=await getArxivTop3();sys.push({role:'system',content:JSON.stringify({source:arxivSource,papers})});}
@@ -418,7 +419,9 @@ async function callAgent(agentId,sys,userText,model,timeoutMs){
 function maStartJob(parsed,res){
   validateMessages({...parsed,agent:'multiagent'},AGENTS);
   if(!TOKEN)throw new Problem('AI 실행 서비스의 자동 연결을 확인해주세요.',409);
+  if(github.forking)throw new Problem('Fork가 준비된 뒤 협업 작업을 시작해주세요.',409);
   const connection=github.requireConnection();
+  if(!connection.repo)throw new Problem('먼저 공개 저장소를 Fork하거나 기존 작업 저장소를 선택해주세요.',409);
   if(!connection.canWrite)throw new Problem('이 저장소에 쓸 수 없습니다. 계정 권한과 저장소 상태를 확인해주세요.',409);
   const request=[...parsed.messages].reverse().find(m=>m.role==='user').content.trim();
   if(request.length>2000)throw new Problem('기능 요청은 2000자 이내로 입력해주세요.');
@@ -553,7 +556,7 @@ const showcase = createShowcase({ github, telegramConfig:connections.telegram, m
     return async(system,user,timeout)=>(await callGateway({url,token,agent,model:process.env.BROWSER_MODEL||DEMO_MODEL,timeout,messages:[{role:'system',content:system},{role:'user',content:user}]})).reply;
   },
   gatewayInfo:()=>({automatic:true,source:gatewayRuntime.source,agent:gatewayRuntime.agent,agents:{git:!!gatewayRuntime.agents.git},error:gatewayRuntime.error}),
-  capabilities:()=>{const g=github.public();return {team:{configured:!!TOKEN&&g.connected&&g.canWrite,repository:`${g.owner}/${g.repo}`,activeJobId:[...MA_JOBS.values()].find(j=>!j.done)?.id||null}};}
+  capabilities:()=>{const g=github.public();return {team:{configured:!!TOKEN&&g.connected&&g.canWrite&&!g.forking,repository:g.repo?`${g.owner}/${g.repo}`:'',activeJobId:[...MA_JOBS.values()].find(j=>!j.done)?.id||null}};}
 });
 
 const server=http.createServer(async(req,res)=>{
