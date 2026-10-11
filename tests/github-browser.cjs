@@ -18,6 +18,14 @@ module.exports=async({page})=>{
   await page.setViewportSize({width:390,height:844});assert(await page.evaluate(()=>document.querySelector('#settings-dialog').scrollWidth<=document.querySelector('#settings-dialog').clientWidth));
   await page.locator('#gh-token').fill('unused_draft_token');await page.locator('[data-close=settings-dialog]').click();await page.locator('#settings-open').click();await page.locator('#tab-github').click();assert.equal(await page.locator('#gh-token').inputValue(),'');
   await page.locator('#gh-disconnect').click();await page.waitForFunction(()=>document.querySelector('#gh-status').textContent==='연결 전');assert.equal(github.public().configured,false);assert.equal(calls.length,2);
+  await page.route('**/api/showcase/status',r=>r.fulfill({json:{gateway:{reachable:true,configured:true,agents:{git:false}},github:{configured:true,connected:true,owner:'fixture-user',repo:'fixture-repo',canWrite:true,source:'config'},team:{configured:true,repository:'fixture-user/fixture-repo'},telegram:{configured:true,connected:true,chatId:'12345',bot:'json_bot',source:'config'},agentmail:{configured:true,connected:true,inboxId:'fixture@agentmail.to',source:'config'}}}));
+  await page.locator('[data-close=settings-dialog]').click();await page.locator('#settings-open').click();
+  for(const [tab,statusId,keyId] of [['telegram','tg-status','tg-token'],['agentmail','mail-status','mail-key'],['github','gh-status','gh-token']]){
+   await page.locator('#tab-'+tab).click();await page.waitForFunction(id=>document.getElementById(id).textContent.includes('api.json'),statusId);assert.equal(await page.locator('#'+keyId).inputValue(),'');
+  }
+  assert.equal(await page.locator('#gh-repository').inputValue(),'fixture-user/fixture-repo');assert.equal(await page.locator('#tg-chat').inputValue(),'12345');assert.equal(await page.locator('#mail-inbox').inputValue(),'fixture@agentmail.to');
+  assert(await page.evaluate(()=>document.querySelector('#settings-dialog').scrollWidth<=document.querySelector('#settings-dialog').clientWidth));
+  console.log('Startup configuration passed: all providers already connected from api.json, masked key fields, populated destinations and mobile layout.');
   console.log('GitHub settings passed: runtime entry, masked token, GET-only verification, immediate repository access, key clearing, no browser storage, disconnect and mobile width.');
  }finally{server.closeAllConnections();await new Promise(r=>server.close(r));}
 };

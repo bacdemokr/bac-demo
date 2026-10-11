@@ -1,15 +1,31 @@
 # Installation
 
-Requires Linux, Node.js 20.6 or newer, OpenClaw, snap Chromium, and Docker for the GitHub MCP server. HealthAgent uses `nvidia-smi`. A graphical desktop is required for Chromium; the supplied service uses `DISPLAY=:1`.
+Requires Node.js 20.6 or newer on macOS or Linux. AI responses require OpenClaw. Browser exploration requires installed Chrome/Chromium; the launcher uses a dedicated headless profile. HealthAgent uses `nvidia-smi` when available. Docker is only needed for the separate GitHub MCP server. The optional Linux graphical Chromium service uses `DISPLAY=:1`.
 
 ## Dependencies and settings
 
 ```bash
 git clone https://github.com/bacdemokr/bac-demo.git
 cd bac-demo
-npm install
-cp .env.example .env
+./bac start
 ```
+
+The launcher installs missing app dependencies with `npm ci`, loads `.env` when present, validates `api.json` (or prepares a blank file with mode 600 on first start), discovers the local OpenClaw configuration, and prepares an installed Chrome/Chromium on the configured local CDP port (default 9222). It reuses an existing CDP browser. It runs in the terminal; Ctrl+C stops the app and only the browser it started. It does not stop an existing browser or OpenClaw. `./bac status` checks the app. Use `./bac start --port 8001` for another web port, `--no-browser` to skip browser startup, or `CHROME_EXECUTABLE` to select an executable. An occupied web port produces an explicit error without killing its owner.
+
+## Unified API settings
+
+```bash
+cp api.example.json api.json
+chmod 600 api.json
+# Fill in the services you want, then:
+./bac start
+```
+
+The root `api.json` has `github` (`token`, `owner`, `repo`), `telegram` (`botToken`, `chatId`), and `agentmail` (`apiKey`, `inboxId`). Enter Chat ID as a string. Blank keys leave a service unset and preserve existing environment/token-file fallbacks. Omit unused provider sections if desired. A configured Telegram token needs a Chat ID; an AgentMail key needs an existing Inbox ID. GitHub owner and repo default to the existing environment settings or `bacdemokr/bac-demo`. Each configured provider is verified at startup, and the settings UI displays **api.json** as its source; secrets are never returned to the browser. Connecting does not send a message or change a GitHub repository.
+
+Runtime entries replace the current connection in memory. `api.json` takes precedence over legacy file/environment credentials; an empty JSON key falls back to those paths. Restarting removes runtime overrides and reloads the file. Disconnecting clears the memory connection until reconnect or restart. It does not edit `api.json`. Editing the JSON file requires a restart. Invalid JSON or invalid configuration stops startup with an error that does not quote credentials. Authentication/network failures appear per service in the UI, allowing the rest of the app to work.
+
+`./bac start --config /path/to/api.json` or `BAC_API_CONFIG` selects another file. `api.json` and `.bac/` (the dedicated browser profile) are gitignored. Only the blank example is packaged. This file configures the app's REST bridges. The bundled GitHub MCP launcher also reads its GitHub token at process start; it does not modify credentials in an already running OpenClaw MCP process. Advanced Gateway/model/port settings remain available in `.env`.
 
 The configured Gateway agent model is used by default. Set `DEMO_MODEL` only to override it with a model available on your gateway. `BROWSER_MODEL` optionally overrides it for browser summaries. `GH_OWNER` and `GH_REPO` set the startup GitHub target; the runtime GitHub tab can change it. The target needs an initial commit and a default branch. PRs use the verified default branch. Generated files go under `demo-features/`; GitHub creates that directory with the first file.
 
@@ -21,16 +37,16 @@ Enable `gateway.http.endpoints.chatCompletions.enabled`. The server routes throu
 
 At startup the app discovers the same-user local OpenClaw listener and its JSON5 configuration, or reads `~/.openclaw/openclaw.json`. `OPENCLAW_CONFIG_PATH`, `OPENCLAW_STATE_DIR` and `OPENCLAW_PROFILE` can select another installation. It uses the token and actual agent IDs automatically; no UI token entry or connection button is needed. Only the discovered config path is remembered in the ignored `app/.openclaw-path`, without copying credentials or modifying OpenClaw. For a remote Gateway set `GATEWAY_URL` and `GATEWAY_TOKEN` in the server environment. `GATEWAY_AGENT`, `GITHUB_AGENT`, `PM_AGENT` and `DEV_AGENT` override routing. Legacy `app/.gw_token` remains supported. The default agent handles general questions and text generation when dedicated agents are absent. GitHub tool actions need a configured `git` agent or `GITHUB_AGENT`; without one, a verified app GitHub connection supports read-only repository metadata and AI explanation. Keep any legacy token files and `app/.gh_token` mode 600.
 
-For GitHub MCP, pull `ghcr.io/github/github-mcp-server:latest`, then configure an OpenClaw `mcp.servers` entry whose command is the absolute path to `scripts/github-mcp.sh`. This script reads `app/.gh_token` and passes it to Docker. Validate the gateway config and reload it.
+For GitHub MCP, pull `ghcr.io/github/github-mcp-server:latest`, then configure an OpenClaw `mcp.servers` entry whose command is the absolute path to `scripts/github-mcp.sh`. This script loads `.env`, reads the GitHub credential from `api.json` (or legacy file/environment settings), and passes it directly in Docker's environment without printing it. Validate the gateway config and reload it.
 
 ## GitHub connection: runtime or startup file
 
 - **Runtime:** Open **연결 설정 → GitHub**, enter a PAT and `owner/repository`, and click **GitHub 연결**. The app verifies the account and repository using GET requests. The verified connection immediately supplies repository metadata and collaboration PR credentials, without restarting. A failed replacement preserves the working connection. Tokens remain in server memory; the input is cleared after success or closing settings, and credentials are never returned in status, stored in browser storage, or passed to the model.
-- **Startup:** Put the PAT in `app/.gh_token` (mode 600), or set `GITHUB_TOKEN` in `.env` and run with `node --env-file=.env app/server.js`. Set `GH_OWNER` and `GH_REPO` for the startup target. File credentials take precedence over environment credentials and are verified at startup. Runtime entries override the active connection without editing either file. Restarting removes the runtime override and reloads startup settings. Disconnecting clears the app connection until a reconnect or restart; it leaves token files intact.
+- **Startup:** Prefer the unified `api.json` above. Alternatively put the PAT in `app/.gh_token` (mode 600), or set `GITHUB_TOKEN` in `.env`, and run `./bac start`. Set `GH_OWNER` and `GH_REPO` for the legacy startup target. After JSON credentials, file credentials take precedence over environment credentials and are verified at startup. Runtime entries override the active connection without editing either file. Restarting removes the runtime override and reloads startup settings. Disconnecting clears the app connection until a reconnect or restart; it leaves files intact.
 
 Use a fine-grained PAT restricted to the demo repository, with **Contents: Read and write** and **Pull requests: Read and write** for collaboration PRs. Connection verification confirms account and repository reads; it does not create a test branch or PR to prove the token's write permissions. A repository with no write access, an archived repository, or a disabled repository cannot start a collaboration PR. Connection changes are blocked while a collaboration job runs, and its requests retain the credentials, repository, and default branch selected at job start.
 
-The runtime GitHub tab configures the app's REST client. It does not change OpenClaw's MCP configuration or replace credentials in an already running MCP process. MCP tool actions continue using the separately configured OpenClaw integration; `scripts/github-mcp.sh` keeps its existing token-file behavior.
+The runtime GitHub tab configures the app's REST client. It does not change OpenClaw's MCP configuration or replace credentials in an already running MCP process. MCP tool actions continue using the separately configured OpenClaw integration. The bundled MCP launcher reads `api.json`, with its existing token-file fallback, when that process starts.
 
 ## Persistent services
 
@@ -43,7 +59,7 @@ systemctl --user daemon-reload
 systemctl --user enable --now bac-chromium bac-demo
 ```
 
-The service reads `.env`. For a foreground run, use `node --env-file=.env app/server.js`.
+The service reads `.env` and the app automatically reads `api.json`. For a foreground run with browser preparation, use `./bac start`.
 
 ```bash
 systemctl --user restart bac-demo

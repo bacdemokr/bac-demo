@@ -20,7 +20,11 @@ const { readJSON } = require("./showcase-api");
 const fs = require("fs");
 const path = require("path");
 const { execFile } = require("child_process");
-const {GitHubConnection,loadGitHubCredential}=require('./github-connection');
+const {GitHubConnection}=require('./github-connection');
+const {loadConnections}=require('./api-config');
+let connections;
+try { connections=loadConnections(); }
+catch(error) { console.error(error.message); process.exit(1); }
 // ----- CONFIG (edit freely) ------------------------------------------------
 let GATEWAY = process.env.GATEWAY_URL || "http://127.0.0.1:18789";
 const DEMO_MODEL = process.env.DEMO_MODEL || "";
@@ -33,19 +37,15 @@ const PORT = process.env.PORT || 8000;
 // GitHub account used by the GitHubAgent (repo listing) and the multi-agent
 // orchestrator (which opens a real PR). Override via env. The PAT you give the
 // 'git' agent's GitHub MCP MUST belong to this same account.
-const GH_OWNER = process.env.GH_OWNER || "bacdemokr";
-const GH_REPO = process.env.GH_REPO || "bac-demo"; // target repo for demo PRs
-const github=new GitHubConnection({...loadGitHubCredential(),owner:GH_OWNER,repo:GH_REPO,canConfigure:()=>![...MA_JOBS.values()].some(j=>!j.done)});
+const GH_OWNER = connections.github.owner;
+const GH_REPO = connections.github.repo;
+const github=new GitHubConnection({...connections.github,canConfigure:()=>![...MA_JOBS.values()].some(j=>!j.done)});
 function githubAgent(){return gatewayRuntime.agents.git?routeAgent('git'):github.public().connected?routeAgent('bac'):routeAgent('git');}
 
 // Dedicated Telegram bot token (a SEPARATE bot from OpenClaw's own, so our
 // independent getUpdates poll never collides with OpenClaw's polling).
 // Kept out of source: read from .tg_token file (or TG_BOT_TOKEN env).
-const TG_TOKEN =
-  process.env.TG_BOT_TOKEN ||
-  (fs.existsSync(path.join(__dirname, ".tg_token"))
-    ? fs.readFileSync(path.join(__dirname, ".tg_token"), "utf8").trim()
-    : "");
+const TG_TOKEN = connections.telegram.token;
 
 // Characters shown in the game. `agent` = OpenClaw agent id to route to.
 // `live` = which live-data injector to use (optional).
@@ -546,7 +546,7 @@ function ghReq(method,p,body,connection){return github.request(connection||githu
 
 // Runtime integration settings are held in server memory only.
 const { createShowcase } = require("./showcase-api");
-const showcase = createShowcase({ github, telegramToken: TG_TOKEN, gateway: ()=>GATEWAY, gatewayToken: ()=>TOKEN,
+const showcase = createShowcase({ github, telegramConfig:connections.telegram, mailConfig:connections.agentmail, gateway: ()=>GATEWAY, gatewayToken: ()=>TOKEN,
   browserAsk:()=>{
     if(!TOKEN)return null;
     const url=GATEWAY,token=TOKEN,agent=routeAgent('bac');
@@ -560,6 +560,7 @@ const server=http.createServer(async(req,res)=>{
   try{
     if(await showcase.handle(req,res))return;
     const p=new URL(req.url,'http://localhost').pathname;
+    if(p==='/api/health'&&req.method==='GET')return send(res,200,{app:'agentic-ai-demo',instanceId:process.env.BAC_INSTANCE_ID||''});
     if(p==='/api/tasks'||p==='/api/chat'){
       if(req.method!=='POST')return send(res,405,{error:'POST 요청이 필요합니다.'},{Allow:'POST'});
       return startJob(await readJSON(req),res);

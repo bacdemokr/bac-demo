@@ -227,6 +227,7 @@ async function freePort(){const s=http.createServer();await new Promise(r=>s.lis
     await require('./github-browser.cjs')({page});assert.deepEqual(errors,[]);
 
   }finally{
+    if(chrome)for(const context of chrome.contexts()){await context.unrouteAll({behavior:'ignoreErrors'});await context.close();}
     if(fixtureApi){fixtureApi.closeAllConnections();await new Promise(r=>fixtureApi.close(r));}if(chrome)await chrome.close();if(fixture){fixture.closeAllConnections();await new Promise(r=>fixture.close(r));}server.kill();await new Promise(r=>{if(server.exitCode!==null)r();else server.once('exit',r);});
   }
 })().catch(e=>{console.error(e);process.exitCode=1;});

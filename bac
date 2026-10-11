@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
+if ! command -v node >/dev/null 2>&1; then
+  echo "Node.js 20.6 이상을 설치한 뒤 다시 실행해주세요." >&2
+  exit 1
+fi
+if [[ -f .env ]]; then
+  exec node --env-file=.env scripts/bac-cli.js "$@"
+fi
+exec node scripts/bac-cli.js "$@"

@@ -1,0 +1,15 @@
+{
+  "github": {
+    "token": "",
+    "owner": "",
+    "repo": ""
+  },
+  "telegram": {
+    "botToken": "",
+    "chatId": ""
+  },
+  "agentmail": {
+    "apiKey": "",
+    "inboxId": ""
+  }
+}

@@ -25,15 +25,15 @@ async function providerRequest(fetcher, url, options, provider) {
 }
 
 class TelegramBridge {
-  constructor({ token = "", chatId = "", fetcher = fetch } = {}) {
+  constructor({ token = "", chatId = "", source = 'environment', fetcher = fetch } = {}) {
     this.fetcher = fetcher;
-    this.connection = token ? { token, chatId: String(chatId), bot: "", verified: false } : null;
+    this.connection = token ? { token, chatId: String(chatId), source, bot: "", verified: false } : null;
     this.revision = 0; this.attempt = 0; this.inbox = []; this.seq = 0; this.offset = 0;
     this.controller = null; this.timer = null; this.error = "";
   }
   public() {
     const c = this.connection;
-    return { configured: !!c, connected: !!c?.verified, bot: c?.bot || "", chatId: c?.chatId || "", error: this.error };
+    return { configured: !!c, connected: !!c?.verified, source:c?.source||'none', bot: c?.bot || "", chatId: c?.chatId || "", error: this.error };
   }
   async request(c, method, payload = {}, signal) {
     const data = await providerRequest(this.fetcher, `https://api.telegram.org/bot${c.token}/${method}`, {
@@ -49,7 +49,7 @@ class TelegramBridge {
     if (disconnect === true) { ++this.revision; this.stop(); this.connection = null; this.inbox = []; this.error = ""; return this.public(); }
     if (typeof token !== "string" || !/^\d{5,15}:[A-Za-z0-9_-]{20,100}$/.test(token.trim())) throw new Problem("BotFather에서 받은 Bot token 전체를 입력해주세요.");
     if (!/^-?\d{1,20}$/.test(String(chatId || "").trim())) throw new Problem("숫자로 된 Chat ID를 입력해주세요.");
-    const c = { token: token.trim(), chatId: String(chatId).trim(), verified: true };
+    const c = { token: token.trim(), chatId: String(chatId).trim(), source:'runtime', verified: true };
     const bot = await this.request(c, "getMe");
     if (!bot.is_bot || !bot.username) throw new Problem("Telegram 봇 정보를 확인할 수 없습니다.", 502);
     const chat = await this.request(c, "getChat", { chat_id: c.chatId });
@@ -112,12 +112,12 @@ class TelegramBridge {
 }
 
 class AgentMailBridge {
-  constructor({ apiKey = "", inboxId = "", fetcher = fetch } = {}) {
+  constructor({ apiKey = "", inboxId = "", source = 'environment', fetcher = fetch } = {}) {
     this.fetcher = fetcher; this.revision = 0;
-    this.connection = apiKey && inboxId ? { apiKey, inboxId, verified: false } : null;
+    this.connection = apiKey && inboxId ? { apiKey, inboxId, source, verified: false } : null;
     this.error = "";
   }
-  public() { return { configured: !!this.connection, connected: !!this.connection?.verified, inboxId: this.connection?.inboxId || "", error: this.error }; }
+  public() { return { configured: !!this.connection, connected: !!this.connection?.verified, source:this.connection?.source||'none', inboxId: this.connection?.inboxId || "", error: this.error }; }
   async request(c, suffix = "", payload) {
     return providerRequest(this.fetcher, `https://api.agentmail.to/v0/inboxes/${encodeURIComponent(c.inboxId)}${suffix}`, {
       method: payload ? "POST" : "GET", headers: { Authorization: `Bearer ${c.apiKey}`, "Content-Type": "application/json" },
@@ -129,7 +129,7 @@ class AgentMailBridge {
     if (disconnect === true) { this.connection = null; this.error = ""; return this.public(); }
     if (typeof apiKey !== "string" || !apiKey.trim() || apiKey.length > 512 || /[\r\n]/.test(apiKey)) throw new Problem("AgentMail API key를 입력해주세요.");
     if (typeof inboxId !== "string" || !inboxId.trim() || inboxId.length > 254 || /[\s/\\?#]/.test(inboxId)) throw new Problem("기존 AgentMail Inbox ID를 입력해주세요.");
-    const c = { apiKey: apiKey.trim(), inboxId: inboxId.trim(), verified: true };
+    const c = { apiKey: apiKey.trim(), inboxId: inboxId.trim(), source:'runtime', verified: true };
     const result = await this.request(c);
     if (!result.inbox_id) throw new Problem("AgentMail 받은편지함 정보를 확인할 수 없습니다.", 502);
     if (revision !== this.revision) throw new Problem("연결 설정이 변경되었습니다.", 409);

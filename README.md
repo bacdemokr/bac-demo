@@ -27,16 +27,34 @@ MCP, CDP, REST API는 서로 다른 연동 방식입니다. 이 데모는 이를
 
 ## 실행
 
-Node.js 20.6 이상이 필요합니다. gateway와 Chromium 설정은 [INSTALL.md](INSTALL.md)를 참고하세요.
+Node.js 20.6 이상이 필요합니다. 프로젝트 폴더에서 아래 명령으로 실행합니다.
 
 ```bash
-npm ci
-cp .env.example .env
-# 로컬 OpenClaw 설정과 실행 중인 서비스는 자동으로 찾습니다.
-node --env-file=.env app/server.js
+./bac start
 ```
 
-[http://127.0.0.1:8000](http://127.0.0.1:8000)에서 열립니다. 화면 자체는 gateway 없이도 확인할 수 있습니다. AI 응답과 외부 메시지 발송에는 해당 서비스가 필요합니다. 시스템 지표와 논문 조회는 Gateway 없이 동작합니다.
+[http://127.0.0.1:8000](http://127.0.0.1:8000)에서 열립니다. 첫 실행에는 앱 패키지를 설치하며, 설치된 Chrome/Chromium을 찾아 브라우저 탐색도 준비합니다. 실행 중인 CDP 브라우저가 있으면 연결해 사용합니다. **Ctrl+C**로 앱과 이 명령이 시작한 브라우저를 종료하며, 기존 브라우저와 OpenClaw는 계속 실행됩니다. 상태 확인은 `./bac status`, 다른 포트는 `./bac start --port 8001`입니다. 브라우저 준비를 생략하려면 `--no-browser`, 별도 설정 파일은 `--config /path/to/api.json`을 사용하세요. `.env`도 자동으로 읽습니다.
+
+화면 자체는 gateway 없이도 확인할 수 있습니다. AI 응답과 외부 메시지 발송에는 해당 서비스가 필요합니다. 시스템 지표와 논문 조회는 Gateway 없이 동작합니다. 상세 설정은 [INSTALL.md](INSTALL.md)를 참고하세요.
+
+## API 한 번에 설정하기
+
+```bash
+cp api.example.json api.json
+chmod 600 api.json
+```
+
+첫 실행에 빈 `api.json`을 자동으로 준비합니다. 미리 설정하려면 위 명령으로 예제를 복사해도 됩니다. 사용할 서비스의 항목만 채우고 `./bac start`를 실행하세요. 연결을 시작 시 검증하므로 화면에서 키를 다시 넣을 필요가 없습니다. 빈 키는 미설정으로 처리하며, 기존 환경변수·토큰 파일을 계속 사용하거나 화면에서 연결할 수 있습니다.
+
+```json
+{
+  "github": { "token": "GitHub PAT", "owner": "저장소 소유자", "repo": "저장소 이름" },
+  "telegram": { "botToken": "BotFather 토큰", "chatId": "숫자 Chat ID" },
+  "agentmail": { "apiKey": "AgentMail 키", "inboxId": "my-agent@agentmail.to" }
+}
+```
+
+화면 입력이 현재 연결을 바꾸며, 재시작하면 `api.json` 설정을 다시 적용합니다. `api.json`의 값이 기존 환경변수·토큰 파일보다 우선합니다. 파일을 수정한 뒤에는 앱을 재시작하세요. 실제 키가 든 `api.json`은 Git에서 제외하고, 배포에는 빈 `api.example.json`만 포함합니다. 연결 확인은 메시지 발송이나 GitHub 변경을 실행하지 않습니다. OpenClaw는 로컬 설정을 자동으로 찾습니다. OpenClaw에 별도 등록한 `scripts/github-mcp.sh`도 시작할 때 같은 파일의 GitHub 토큰을 읽습니다. 화면 입력으로 이미 실행 중인 MCP 인증을 바꾸지는 않습니다.
 
 ## 권장 시연 흐름
 
@@ -56,9 +74,9 @@ node --env-file=.env app/server.js
 
 이 서버는 한 명의 시연자가 사용하는 로컬 앱입니다. 여러 브라우저 탭은 같은 연결을 공유합니다. 기본 localhost 바인딩을 유지하세요. 다중 사용자 서비스로 배포하려면 인증과 사용자별 연결 격리를 추가해야 합니다.
 
-기존 환경변수와 토큰 파일도 지원합니다. `.env`, `app/.gw_token`, `app/.gh_token`, `app/.tg_token`을 커밋하지 마세요. 환경변수로 AgentMail을 연결하려면 `AGENTMAIL_API_KEY`, `AGENTMAIL_INBOX_ID`를 설정합니다. Telegram은 별도 봇의 token과 `TG_CHAT_ID`를 함께 지정합니다.
+기존 환경변수와 토큰 파일도 지원합니다. `api.json`, `.env`, `app/.gw_token`, `app/.gh_token`, `app/.tg_token`을 커밋하지 마세요. 환경변수로 AgentMail을 연결하려면 `AGENTMAIL_API_KEY`, `AGENTMAIL_INBOX_ID`를 설정합니다. Telegram은 별도 봇의 token과 `TG_CHAT_ID`를 함께 지정합니다.
 
-GitHub의 화면 입력은 파일·환경 설정보다 우선합니다. 연결 해제는 앱의 메모리 연결을 비우며, 기존 토큰 파일을 삭제하지 않습니다. 다음 앱 시작에서는 파일·환경 설정을 다시 읽습니다. 협업 작업이 진행 중이면 연결 변경을 막고, 시작 시 선택한 저장소와 인증으로 해당 PR 작업을 마칩니다. 연결 확인은 계정·저장소 조회이며 토큰의 쓰기 권한을 실제 변경으로 시험하지 않습니다. PR 생성용 토큰에는 Contents와 Pull requests 쓰기 권한이 필요합니다.
+GitHub의 화면 입력은 파일·환경 설정보다 우선합니다. 연결 해제는 앱의 메모리 연결을 비우며, 설정 파일을 삭제하지 않습니다. 다음 앱 시작에서는 `api.json`과 기존 설정을 다시 읽습니다. 협업 작업이 진행 중이면 연결 변경을 막고, 시작 시 선택한 저장소와 인증으로 해당 PR 작업을 마칩니다. 연결 확인은 계정·저장소 조회이며 토큰의 쓰기 권한을 실제 변경으로 시험하지 않습니다. PR 생성용 토큰에는 Contents와 Pull requests 쓰기 권한이 필요합니다.
 
 ## 검증
 

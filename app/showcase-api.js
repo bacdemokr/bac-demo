@@ -28,9 +28,9 @@ async function readJSON(req) {
   } catch { throw new Problem("올바른 JSON 내용을 보내주세요."); }
 }
 
-function createShowcase({ telegramToken = "", gateway = "", gatewayToken = "", gatewayInfo = () => ({}), fetcher = fetch, github = new GitHubConnection({fetcher}), browser, browserAsk, capabilities = () => ({}) } = {}) {
-  const telegram = new TelegramBridge({ token: telegramToken, chatId: process.env.TG_CHAT_ID, fetcher });
-  const mail = new AgentMailBridge({ apiKey: process.env.AGENTMAIL_API_KEY, inboxId: process.env.AGENTMAIL_INBOX_ID, fetcher });
+function createShowcase({ telegramToken = "", telegramConfig = {token:telegramToken,chatId:process.env.TG_CHAT_ID,source:'environment'}, mailConfig = {apiKey:process.env.AGENTMAIL_API_KEY,inboxId:process.env.AGENTMAIL_INBOX_ID,source:'environment'}, gateway = "", gatewayToken = "", gatewayInfo = () => ({}), fetcher = fetch, github = new GitHubConnection({fetcher}), browser, browserAsk, capabilities = () => ({}) } = {}) {
+  const telegram = new TelegramBridge({ ...telegramConfig, fetcher });
+  const mail = new AgentMailBridge({ ...mailConfig, fetcher });
   browser ||= new BrowserJobs({ endpoint: process.env.BROWSER_CDP_URL || "http://127.0.0.1:9222", ask:browserAsk });
   const resolve=value=>typeof value==='function'?value():value;
   async function probe(url, headers = {}) {

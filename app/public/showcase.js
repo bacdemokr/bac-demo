@@ -61,12 +61,14 @@
   function showStatus(id,text,error=false){$(id).textContent=text;$(id).classList.toggle('error',error);}
   function renderConnections(){
     const tg=status.telegram||{},mail=status.agentmail||{},gh=status.github||{},gw=status.gateway||{};
+    const source=c=>({runtime:'화면 입력',config:'api.json',file:'파일 설정',environment:'환경 설정'}[c.source]||'');
+    const sourceNote=c=>source(c)?' · '+source(c):'';
     if(document.activeElement!==$('tg-chat')&&!$('tg-chat').value)$('tg-chat').value=tg.chatId||'';
     if(document.activeElement!==$('mail-inbox')&&!$('mail-inbox').value)$('mail-inbox').value=mail.inboxId||'';
     if(document.activeElement!==$('gh-repository')&&!$('gh-repository').value&&gh.owner&&gh.repo)$('gh-repository').value=gh.owner+'/'+gh.repo;
-    if(!$('telegram-form').dataset.pending)showStatus('tg-status',tg.connected?`@${tg.bot} · Chat ${tg.chatId}${tg.error?' · 수신 연결 확인 필요':''}`:tg.error||'연결 전',!!tg.error);
-    if(!$('mail-connect-form').dataset.pending)showStatus('mail-status',mail.connected?`연결됨 · ${mail.inboxId}`:mail.error||'연결 전',!!mail.error);
-    if(!$('github-form').dataset.pending){const source={runtime:'화면 입력',file:'파일 설정',environment:'환경 설정'}[gh.source]||'';showStatus('gh-status',gh.connected?`연결됨 · ${gh.owner}/${gh.repo} · ${source}${gh.canWrite?'':' · 저장소 쓰기 불가'}`:gh.error|| (gh.configured?'연결 확인 중...':'연결 전'),!!gh.error);}
+    if(!$('telegram-form').dataset.pending)showStatus('tg-status',tg.connected?`@${tg.bot} · Chat ${tg.chatId}${sourceNote(tg)}${tg.error?' · 수신 연결 확인 필요':''}`:tg.error||(tg.configured?'연결 확인 중...':'연결 전'),!!tg.error);
+    if(!$('mail-connect-form').dataset.pending)showStatus('mail-status',mail.connected?`연결됨 · ${mail.inboxId}${sourceNote(mail)}`:mail.error||(mail.configured?'연결 확인 중...':'연결 전'),!!mail.error);
+    if(!$('github-form').dataset.pending)showStatus('gh-status',gh.connected?`연결됨 · ${gh.owner}/${gh.repo}${sourceNote(gh)}${gh.canWrite?'':' · 저장소 쓰기 불가'}`:gh.error|| (gh.configured?'연결 확인 중...':'연결 전'),!!gh.error);
     $('tg-disconnect').disabled=!!$('telegram-form').dataset.pending||!tg.configured;$('mail-disconnect').disabled=!!$('mail-connect-form').dataset.pending||!mail.configured;
     $('gh-disconnect').disabled=!!$('github-form').dataset.pending||!gh.configured;
     const runtime=canRun('web-summary');$('runtime-status').classList.toggle('connected',runtime);$('runtime-status').lastChild.textContent=runtime?' AI 연결됨':' AI 서비스 확인 필요';
