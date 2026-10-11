@@ -23,14 +23,10 @@ const { execFile } = require("child_process");
 // ----- CONFIG (edit freely) ------------------------------------------------
 let GATEWAY = process.env.GATEWAY_URL || "http://127.0.0.1:18789";
 const DEMO_MODEL = process.env.DEMO_MODEL || "";
-let TOKEN =
-  process.env.GATEWAY_TOKEN ||
-  // Persistent first (survives reboots; /tmp is wiped on boot by tmpfiles.d).
-  (fs.existsSync(path.join(__dirname, ".gw_token"))
-    ? fs.readFileSync(path.join(__dirname, ".gw_token"), "utf8").trim()
-    : fs.existsSync("/tmp/gw_token.txt")
-    ? fs.readFileSync("/tmp/gw_token.txt", "utf8").trim()
-    : "");
+let TOKEN='';
+let gatewayRuntime={agent:'bac',agents:{bac:'bac',git:'git',pm:'pm',dev:'dev'},automatic:true,source:'unavailable',error:''};
+const {resolveOpenClaw}=require('./openclaw-config');
+function routeAgent(role='bac'){const agent=gatewayRuntime.agents[role];if(!agent)throw new Problem('GitHub 도구가 설정된 OpenClaw 에이전트가 없습니다.',409);return agent;}
 const PORT = process.env.PORT || 8000;
 
 // GitHub account used by the GitHubAgent (repo listing) and the multi-agent
@@ -344,17 +340,17 @@ async function chatWorker(parsed) {
     const evidence=showcase.browser.evidence(parsed.searchJobId);
     if(job.mode!=='search'&&!evidence.documents.some(d=>d.status==='read'))throw new Problem('읽을 수 있는 원문이 없어 답변을 만들지 않았습니다.',409);
     if(job.mode!=='search'){
-      const summary=await summarizeResearch(evidence.request,evidence.mode,evidence.documents,async(system,user,timeout)=>(await callGateway({url:GATEWAY,token:TOKEN,agent:'bac',model:process.env.BROWSER_MODEL||DEMO_MODEL,timeout,messages:[{role:'system',content:system},{role:'user',content:user}]})).reply);
+      const summary=await summarizeResearch(evidence.request,evidence.mode,evidence.documents,async(system,user,timeout)=>(await callGateway({url:GATEWAY,token:TOKEN,agent:routeAgent('bac'),model:process.env.BROWSER_MODEL||DEMO_MODEL,timeout,messages:[{role:'system',content:system},{role:'user',content:user}]})).reply);
       return {reply:summary.answer,limitations:summary.limitations};
     }
     sys.push({role:'system',content:JSON.stringify(evidence)});
   }
   if(cfg.live==='github')sys.push({role:'system',content:'Configured repositories: '+JSON.stringify(await getRepos())});
   if(cfg.live==='arxiv'){const papers=await getArxivTop3();sys.push({role:'system',content:JSON.stringify({source:arxivSource,papers})});}
-  return callGateway({url:GATEWAY,token:TOKEN,agent:cfg.agent||'bac',model:cfg.model,messages:[...sys,...messages]});
+  return callGateway({url:GATEWAY,token:TOKEN,agent:routeAgent(cfg.agent||'bac'),model:cfg.model,messages:[...sys,...messages]});
 }
 const chatJobs=new TaskJobs(chatWorker);
-function startJob(parsed,res){validateMessages(parsed,AGENTS);if(parsed.agent==='multiagent')throw new Problem('협업 작업 메뉴를 사용해주세요.');if(!TOKEN)throw new Problem('Gateway 인증 설정이 필요합니다.',409);send(res,202,chatJobs.create(parsed));}
+function startJob(parsed,res){validateMessages(parsed,AGENTS);if(parsed.agent==='multiagent')throw new Problem('협업 작업 메뉴를 사용해주세요.');if(!TOKEN)throw new Problem('AI 실행 서비스의 자동 연결을 확인해주세요.',409);routeAgent(AGENTS[parsed.agent].agent||'bac');send(res,202,chatJobs.create(parsed));}
 
 // ----- OrchestratorAgent orchestration -----------------------------------------
 // Orchestrator spawns a PM subagent (plans) then a Dev subagent (ships a real
@@ -403,12 +399,12 @@ function cleanCode(raw, ext) {
 
 // Failed Gateway responses never become generated plans or code.
 async function callAgent(agentId,sys,userText,model,timeoutMs){
-  return (await callGateway({url:GATEWAY,token:TOKEN,agent:agentId,model,timeout:timeoutMs||60000,messages:[{role:'system',content:sys},{role:'user',content:userText}]})).reply;
+  return (await callGateway({url:GATEWAY,token:TOKEN,agent:routeAgent(agentId),model,timeout:timeoutMs||60000,messages:[{role:'system',content:sys},{role:'user',content:userText}]})).reply;
 }
 
 function maStartJob(parsed,res){
   validateMessages({...parsed,agent:'multiagent'},AGENTS);
-  if(!TOKEN)throw new Problem('Gateway 인증 설정이 필요합니다.',409);
+  if(!TOKEN)throw new Problem('AI 실행 서비스의 자동 연결을 확인해주세요.',409);
   if(!ghToken())throw new Problem('협업 PR 생성용 GitHub token 설정이 필요합니다.',409);
   const request=[...parsed.messages].reverse().find(m=>m.role==='user').content.trim();
   if(request.length>2000)throw new Problem('기능 요청은 2000자 이내로 입력해주세요.');
@@ -578,17 +574,10 @@ const { createShowcase } = require("./showcase-api");
 const showcase = createShowcase({ telegramToken: TG_TOKEN, gateway: ()=>GATEWAY, gatewayToken: ()=>TOKEN,
   browserAsk:()=>{
     if(!TOKEN)return null;
-    const url=GATEWAY,token=TOKEN;
-    return async(system,user,timeout)=>(await callGateway({url,token,agent:'bac',model:process.env.BROWSER_MODEL||DEMO_MODEL,timeout,messages:[{role:'system',content:system},{role:'user',content:user}]})).reply;
+    const url=GATEWAY,token=TOKEN,agent=routeAgent('bac');
+    return async(system,user,timeout)=>(await callGateway({url,token,agent,model:process.env.BROWSER_MODEL||DEMO_MODEL,timeout,messages:[{role:'system',content:system},{role:'user',content:user}]})).reply;
   },
-  configureGateway:async({url,token,disconnect})=>{
-    if(disconnect===true){TOKEN='';return {configured:false,reachable:false,url:GATEWAY};}
-    let endpoint;try{endpoint=new URL(url);if(!/^https?:$/.test(endpoint.protocol)||endpoint.username||endpoint.password||endpoint.search||endpoint.hash)throw Error();}catch{throw new Problem('Gateway의 HTTP 또는 HTTPS 주소를 입력해주세요.');}
-    if(typeof token!=='string'||!token.trim()||token.length>2048||/[\r\n]/.test(token))throw new Problem('Gateway 인증 토큰을 입력해주세요.');
-    const next=endpoint.href.replace(/\/$/,'');
-    try{const r=await fetch(next+'/health',{headers:{Authorization:`Bearer ${token.trim()}`},redirect:'error',signal:AbortSignal.timeout(4000)});if(!r.ok)throw Error();}catch{throw new Problem('Gateway 주소에서 응답을 받지 못했습니다. 주소와 토큰을 확인해주세요.',502);}
-    GATEWAY=next;TOKEN=token.trim();return {configured:true,reachable:true,url:GATEWAY};
-  },
+  gatewayInfo:()=>({automatic:true,source:gatewayRuntime.source,agent:gatewayRuntime.agent,agents:{git:!!gatewayRuntime.agents.git},error:gatewayRuntime.error}),
   capabilities:()=>({team:{configured:!!TOKEN&&!!ghToken(),repository:`${GH_OWNER}/${GH_REPO}`,activeJobId:[...MA_JOBS.values()].find(j=>!j.done)?.id||null}})
 });
 
@@ -617,12 +606,15 @@ const server=http.createServer(async(req,res)=>{
   }catch(error){send(res,error.status||500,{error:error instanceof Problem?error.message:'작업을 완료하지 못했습니다.'});}
 });
 
-server.listen(PORT, process.env.HOST || "127.0.0.1", () => {
-  console.log(`Agentic AI Demo on http://127.0.0.1:${PORT}`);
-  console.log(`Proxying to ${GATEWAY} (token ${TOKEN ? "loaded" : "MISSING"})`);
-  console.log(`Telegram bridge token ${TG_TOKEN ? "loaded" : "MISSING"}`);
-  showcase.start();
-});
+resolveOpenClaw().then(runtime=>{
+  gatewayRuntime=runtime;GATEWAY=runtime.url;TOKEN=runtime.token;
+  server.listen(PORT, process.env.HOST || "127.0.0.1", () => {
+    console.log(`Agentic AI Demo on http://127.0.0.1:${PORT}`);
+    console.log(`OpenClaw ${runtime.source}: ${GATEWAY} (agent ${runtime.agent||'unavailable'}, token ${TOKEN ? "loaded" : "MISSING"})`);
+    console.log(`Telegram bridge token ${TG_TOKEN ? "loaded" : "MISSING"}`);
+    showcase.start();
+  });
+}).catch(()=>{console.error('OpenClaw 자동 설정을 완료하지 못했습니다. 서버 설정을 확인해주세요.');process.exitCode=1;});
 
 // Long agent turns (fork/PR can take ~10s+). Make sure the server never
 // preemptively closes a slow connection out from under the browser.

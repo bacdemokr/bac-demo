@@ -19,7 +19,7 @@ For OpenClaw 2026.9.4, configure `agents.entries` with `bac`, `git`, `pm`, and `
 
 Enable `gateway.http.endpoints.chatCompletions.enabled`. The server routes through `openclaw/<agent-id>` with agent-scoped session keys. Older OpenClaw versions may use `agents.list`; use the configuration schema of your running gateway.
 
-You can connect the Gateway URL and token from **연결 설정 → AI 연결** for the current server session. Only the address response is checked on connection; model access is verified by an actual task. For persistent configuration, store the gateway auth token in `app/.gw_token` and a GitHub token with access to the target repository in `app/.gh_token`. Set both files to mode 600. Environment alternatives are `GATEWAY_TOKEN` and `GITHUB_TOKEN` for the web server.
+At startup the app discovers the same-user local OpenClaw listener and its JSON5 configuration, or reads `~/.openclaw/openclaw.json`. `OPENCLAW_CONFIG_PATH`, `OPENCLAW_STATE_DIR` and `OPENCLAW_PROFILE` can select another installation. It uses the token and actual agent IDs automatically; no UI token entry or connection button is needed. Only the discovered config path is remembered in the ignored `app/.openclaw-path`, without copying credentials or modifying OpenClaw. For a remote Gateway set `GATEWAY_URL` and `GATEWAY_TOKEN` in the server environment. `GATEWAY_AGENT`, `GITHUB_AGENT`, `PM_AGENT` and `DEV_AGENT` override routing. Legacy `app/.gw_token` remains supported. The default agent handles general questions and text generation when dedicated agents are absent; GitHub AI actions require a configured `git` agent or `GITHUB_AGENT`. Keep any legacy token files and `app/.gh_token` mode 600.
 
 For GitHub MCP, pull `ghcr.io/github/github-mcp-server:latest`, then configure an OpenClaw `mcp.servers` entry whose command is the absolute path to `scripts/github-mcp.sh`. This script reads `app/.gh_token` and passes it to Docker. Validate the gateway config and reload it.
 
@@ -45,7 +45,7 @@ bash scripts/ensure-cdp.sh
 
 ## Browser showcase
 
-The default browser workflow accepts a research question with general, news, and comparison modes. With a Gateway it plans up to two focused queries, selects relevant sources, and synthesizes a cited answer. It uses Naver and Daum in automatic mode; Google is used only when manually selected. It deduplicates candidates, opens up to five candidate articles until three readable pages are found, and extracts rendered body text and publication metadata. Unreadable pages and missing dates are reported. Search snippets are not treated as article evidence. Without a Gateway it still collects readable evidence; **AI로 정리** can synthesize it after you connect. The optional quick-search mode keeps the previous single-search behavior.
+The default browser workflow accepts a research question with general, news, and comparison modes. With a Gateway it plans up to two focused queries, selects relevant sources, and synthesizes a cited answer. It uses Naver and Daum in automatic mode; Google is used only when manually selected. It deduplicates candidates, opens up to five candidate articles until three readable pages are found, and extracts rendered body text and publication metadata. Unreadable pages and missing dates are reported. Search snippets are not treated as article evidence. Without an available Gateway it still collects readable evidence; **AI로 정리** can synthesize it after the service recovers. The optional quick-search mode keeps the previous single-search behavior.
 
 The browser viewer connects to `BROWSER_CDP_URL` (default `http://127.0.0.1:9222`). It opens a worker tab, captures the actual page while navigating and scrolling, extracts links, and then closes its worker tab. Chromium remains running. Only one search can run at a time; completed captures are kept in memory for up to 12 jobs and removed as new jobs arrive.
 
@@ -66,7 +66,7 @@ On macOS, use a dedicated profile:
 
 Keep CDP on loopback. A site may present CAPTCHA, consent, or access restrictions. The viewer shows the actual screenshot and does not substitute invented results. An unavailable CDP endpoint produces a clear setup message. Closing the viewer does not cancel the worker; you can reopen it to see its progress. Search-page links are extracted with generic selectors, so extraction quality can vary by site.
 
-The browser viewer can summarize a completed browser job without repeating the search. This requires a working `bac` gateway agent and model. `BROWSER_MODEL` overrides the model used for summarization.
+The browser viewer can summarize a completed browser job without repeating the search. This requires the automatically selected general Gateway agent and its model. `BROWSER_MODEL` overrides the model used for summarization.
 
 ## Optional Telegram
 

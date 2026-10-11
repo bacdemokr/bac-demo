@@ -6,6 +6,7 @@ node_modules/
 app/.gw_token
 app/.gh_token
 app/.tg_token
+app/.openclaw-path
 *.gw_token
 *.gh_token
 *.tg_token

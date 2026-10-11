@@ -113,7 +113,7 @@ class BrowserJobs {
       }
       const count=job.documents.filter(d=>d.status==='read').length;
       if(ask&&count){this.event(job,"synthesize","읽은 원문을 대조하고 출처를 붙여 답변 작성");try{job.summary=await summarizeResearch(job.query,job.mode,job.documents,ask);}catch(e){job.summaryError=e.message;this.event(job,"summary-error","AI 정리를 완료하지 못했습니다. 읽은 근거는 아래에서 확인할 수 있습니다.");}}
-      else job.summaryError=count?'AI 정리는 OpenClaw 연결 후 가능합니다. 아래에는 실제 읽은 원문을 표시합니다.':'읽을 수 있는 원문이 없어 답변을 만들지 않았습니다.';
+      else job.summaryError=count?'AI 실행 서비스에 자동 연결하지 못했습니다. 아래에는 실제 읽은 원문을 표시합니다.':'읽을 수 있는 원문이 없어 답변을 만들지 않았습니다.';
       job.note=`검색원 ${groups.length}회 확인 · 후보 ${job.results.length}개 · 원문 ${count}/${job.documents.length}개 읽음`;
       this.event(job,"done","조사 완료");
     }catch(error){job.status='error';job.error=job.stage==='connect'?'Chromium에 연결할 수 없습니다. 설치 안내에 따라 CDP 브라우저를 실행해주세요.':error instanceof Problem?error.message:'조사를 완료하지 못했습니다. 실행 기록과 네트워크 상태를 확인해주세요.';this.event(job,"error",job.error);}

@@ -27,7 +27,7 @@ async function readJSON(req) {
   } catch { throw new Problem("올바른 JSON 내용을 보내주세요."); }
 }
 
-function createShowcase({ telegramToken = "", gateway = "", gatewayToken = "", fetcher = fetch, browser, browserAsk, configureGateway, capabilities = () => ({}) } = {}) {
+function createShowcase({ telegramToken = "", gateway = "", gatewayToken = "", gatewayInfo = () => ({}), fetcher = fetch, browser, browserAsk, capabilities = () => ({}) } = {}) {
   const telegram = new TelegramBridge({ token: telegramToken, chatId: process.env.TG_CHAT_ID, fetcher });
   const mail = new AgentMailBridge({ apiKey: process.env.AGENTMAIL_API_KEY, inboxId: process.env.AGENTMAIL_INBOX_ID, fetcher });
   browser ||= new BrowserJobs({ endpoint: process.env.BROWSER_CDP_URL || "http://127.0.0.1:9222", ask:browserAsk });
@@ -44,10 +44,7 @@ function createShowcase({ telegramToken = "", gateway = "", gatewayToken = "", f
           probe(resolve(gateway) + "/health", resolve(gatewayToken) ? { Authorization: `Bearer ${resolve(gatewayToken)}` } : {}),
           probe(browser.endpoint + "/json/version"),
         ]);
-        respond(res, 200, { gateway: { reachable: gatewayReachable, configured: !!resolve(gatewayToken), url:resolve(gateway) }, browser: { connected: browserConnected }, telegram: telegram.public(), agentmail: mail.public(), ...capabilities() });
-      } else if(p === "/api/showcase/gateway" && req.method === "POST") {
-        if(!configureGateway)throw new Problem("Gateway 설정을 변경할 수 없습니다.",409);
-        respond(res,200,await configureGateway(await readJSON(req)));
+        respond(res, 200, { gateway: { ...gatewayInfo(), reachable: gatewayReachable, configured: !!resolve(gatewayToken), url:resolve(gateway) }, browser: { connected: browserConnected }, telegram: telegram.public(), agentmail: mail.public(), ...capabilities() });
       } else if (p === "/api/integrations/telegram" && req.method === "GET") respond(res, 200, telegram.public());
       else if (p === "/api/integrations/telegram" && req.method === "POST") respond(res, 200, await telegram.configure(await readJSON(req)));
       else if (p === "/api/integrations/telegram/send" && req.method === "POST") respond(res, 200, await telegram.send((await readJSON(req)).text));

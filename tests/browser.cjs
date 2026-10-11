@@ -72,8 +72,7 @@ async function freePort(){const s=http.createServer();await new Promise(r=>s.lis
     await page.locator('#tab-agentmail').click();await page.locator('#mail-key').fill('fixture-key');await page.locator('#mail-inbox').fill('fixture@agentmail.to');
     await page.getByRole('button',{name:'AgentMail 연결',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#mail-status').textContent.includes('연결됨'));
     assert.equal(await page.locator('#mail-key').inputValue(),'');assert.equal(await page.evaluate(()=>Object.keys(localStorage).length),0);
-    await page.route('**/api/showcase/gateway',r=>{assert.equal(r.request().method(),'POST');assert.equal(r.request().postDataJSON().token,'fixture-gateway-token');return r.fulfill({json:{configured:true,reachable:true,url:'http://127.0.0.1:18789'}});});
-    await page.locator('#tab-gateway').click();await page.locator('#gw-token').fill('fixture-gateway-token');await page.getByRole('button',{name:'AI 연결',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#gw-status').textContent.includes('인증 정보 설정됨'));assert.equal(await page.locator('#gw-token').inputValue(),'');assert.equal(await page.evaluate(()=>Object.keys(localStorage).length),0);
+    assert.equal(await page.locator('#gateway-form,#gw-token,#tab-gateway').count(),0);
     await page.locator('[data-close=settings-dialog]').click();
     await page.route('**/api/integrations/agentmail/messages',r=>r.fulfill({json:{messages:[{id:'m1',subject:'<img src=x onerror=alert(1)>',from:'fixture@example.com',preview:'<script>unsafe()</script>',at:new Date().toISOString()}]}}));
     await page.locator('[data-mission=mail]').click();await page.locator('.inbox-item').waitFor();assert.equal(await page.locator('.inbox-item img,.inbox-item script').count(),0);
@@ -201,7 +200,7 @@ async function freePort(){const s=http.createServer();await new Promise(r=>s.lis
     await page.setViewportSize({width:390,height:844});await wait(300);assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert(await page.evaluate(()=>document.querySelector('#browser-dialog').scrollWidth<=document.querySelector('#browser-dialog').clientWidth));
     await page.locator('#browser-summary').scrollIntoViewIfNeeded();if(process.env.SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'bac-demo-research-mobile.png')});
     await page.setViewportSize({width:1440,height:900});await wait(300);await page.evaluate(()=>document.querySelector('#browser-dialog').scrollTop=0);if(process.env.SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'bac-demo-research-preview.png')});
-    await page.setViewportSize({width:390,height:844});await page.evaluate(()=>window.BacShowcase.settings('gateway'));await wait(300);assert(await page.evaluate(()=>document.querySelector('#settings-dialog').scrollWidth<=document.querySelector('#settings-dialog').clientWidth));await page.locator('[data-close=settings-dialog]').click();
+    await page.setViewportSize({width:390,height:844});await page.evaluate(()=>window.BacShowcase.settings('tools'));await wait(300);assert(await page.evaluate(()=>document.querySelector('#settings-dialog').scrollWidth<=document.querySelector('#settings-dialog').clientWidth));await page.locator('[data-close=settings-dialog]').click();
     assert.deepEqual(errors,[]);console.log('Research UI passed: automatic answer, clickable citations, dated evidence, collapsed candidates, editable question presets, mobile width.');
 
 
