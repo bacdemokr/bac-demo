@@ -286,4 +286,5 @@ body{height:auto;overflow:visible}
 .research-complete .browser-trace{max-height:248px}
 @media(max-width:650px){#browser-documents{grid-template-columns:1fr}.browser-options{flex-wrap:wrap}#browser-mode,#browser-source{flex:1;min-width:100px}#browser-run{width:100%;margin:0}#browser-query{font-size:14px}.browser-trace{max-height:180px}.browser-actions{bottom:-18px}#browser-form>label{display:block}}
 @media(max-width:650px){.settings-dialog .tab-bar{overflow:auto}.settings-dialog [role=tab]{flex:0 0 auto;font-size:11px;padding:9px 10px}}
-@media(max-width:650px){.research-complete .browser-viewport{height:150px}.research-complete .browser-trace{max-height:100px}.research-complete #browser-steps{margin-top:0}}
+@media(max-width:900px){.browser-trace,.research-complete .browser-trace{max-height:none;overflow:visible}#browser-steps{max-height:150px}}
+@media(max-width:650px){.research-complete .browser-viewport{height:150px}.research-complete #browser-steps{margin-top:0}}
