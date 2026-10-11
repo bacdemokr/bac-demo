@@ -18,14 +18,13 @@
     toastTimer=setTimeout(() => {$('toast').hidden=true;},4500);
   };
   function activity(agent, text) {
-    $('activity-list').querySelector('.empty-activity')?.remove();
     const item=document.createElement('li'), time=document.createElement('time'), name=document.createElement('strong'), content=document.createElement('p');
     time.textContent=new Date().toLocaleTimeString('ko-KR',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});name.textContent=agent;content.textContent=text;
     item.append(time,name,content);$('activity-list').prepend(item);
     while($('activity-list').children.length>4)$('activity-list').lastElementChild.remove();
   }
   function roster(agents) {
-    $('agent-roster').replaceChildren();$('agent-count').textContent=`${String(agents.length).padStart(2,'0')} AGENTS`;
+    $('agent-roster').replaceChildren();$('agent-count').textContent=`에이전트 ${agents.length}`;
     agents.forEach(a => {
       const b=document.createElement('button');b.className='agent-button';b.dataset.agent=a.id;b.style.setProperty('--agent-color',a.color);
       const dot=document.createElement('i'), label=document.createElement('span'), role=document.createElement('small');
@@ -43,7 +42,7 @@
     if(!a)return;
     $('chat-role').textContent=roles[a.id] || a.role;
     const button=(text,fn) => {const b=document.createElement('button');b.textContent=text;b.onclick=fn;$('agent-actions').append(b);};
-    if(a.id==='scout')button('↗ 실제 브라우저 탐색',()=>openBrowser());
+    if(a.id==='scout')button('↗ 브라우저 탐색',()=>openBrowser());
     if(a.id==='telegram')button('⚙ Telegram 연결',()=>openSettings('telegram'));
     if(a.id==='agentmail') {button('✉ 받은편지함',()=>openInbox());button('메일 쓰기',()=>openShare('agentmail',''));button('⚙ 연결',()=>openSettings('agentmail'));}
     if(a.id==='github')button('저장소 목록 보기',()=>demo().runTurn(a,'List my repositories.'));
@@ -122,11 +121,11 @@
   const renderSteps=job=>{
     const list=$('browser-steps');list.replaceChildren();
     job.events.forEach(step=>{const li=document.createElement('li'),time=document.createElement('time');li.textContent=step.text;time.textContent=new Date(step.at).toLocaleTimeString('ko-KR',{hour12:false});li.append(time);list.append(li);});
-    $('browser-address').textContent=job.url;$('browser-live').textContent=job.status==='running'?'LIVE CAPTURE':job.status==='done'?'CAPTURED':'ERROR';
+    $('browser-address').textContent=job.url;$('browser-live').textContent=job.status==='running'?'탐색 중':job.status==='done'?'완료':'오류';
     if(job.screenshot&&$('browser-frame').dataset.revision!==String(job.revision)){
       $('browser-frame').src=job.screenshot;$('browser-frame').dataset.revision=String(job.revision);$('browser-frame').hidden=false;$('browser-empty').hidden=true;
     }
-    $('browser-note').textContent=job.error||job.note||(job.status==='done'?`${job.results.length}개 링크 확인`:'실제 브라우저에서 탐색 중...');
+    $('browser-note').textContent=job.error||job.note||(job.status==='done'?`${job.results.length}개 링크`:'탐색 중...');
   };
   function browserText(job){return `${job.source} 검색: ${job.query}\n\n`+job.results.map((r,i)=>`${i+1}. ${r.title}\n${r.url}${r.snippet?'\n'+r.snippet:''}`).join('\n\n');}
   function renderResults(job){
@@ -145,7 +144,7 @@
     let eventCount=0;
     try{
       browserJob=await api('/api/browser/jobs',{query:$('browser-query').value.trim(),provider:$('browser-source').value});
-      demo().bubble('scout','실제 브라우저에서 검색 중 ↗');
+      demo().bubble('scout','검색 중');
       for(let i=0;i<150;i++){
         renderSteps(browserJob);
         browserJob.events.slice(eventCount).forEach(s=>activity('Browser',s.text));eventCount=browserJob.events.length;
@@ -155,7 +154,7 @@
       renderSteps(browserJob);renderResults(browserJob);
       if(browserJob.status==='running')throw new Error('탐색이 지연되고 있습니다. 잠시 후 다시 실행해주세요.');
       if(browserJob.status==='error')throw new Error(browserJob.error);
-      if(browserJob.results.length){results.set('NaverAgent',browserText(browserJob));demo().bubble('scout',`${browserJob.results.length}개 링크를 확인했어요`);}
+      if(browserJob.results.length){results.set('NaverAgent',browserText(browserJob));demo().bubble('scout',`${browserJob.results.length}개 링크`);}
     }catch(error){$('browser-note').textContent=error.message;activity('Browser',error.message);}
     finally{browserRunning=false;demo().busy('scout',false);$('browser-run').disabled=false;if(demo().getActive()?.id==='scout')$('send').disabled=false;}
   };
@@ -194,7 +193,7 @@
     $('share-send').disabled=true;showStatus('share-status','전송 중...');
     try{
       const data=await api('/api/integrations/'+channel+'/send',channel==='telegram'?{text:$('share-text').value}:{to:$('share-to').value.trim(),subject:$('share-subject').value.trim(),text:$('share-text').value});
-      showStatus('share-status',`전송 완료 · ${data.messageId}`);activity(channel,'사용자가 확인한 결과 전송 완료');demo().bubble(channel==='agentmail'?'agentmail':'telegram','결과를 보냈어요 ↗');
+      showStatus('share-status',`전송 완료 · ${data.messageId}`);activity(channel,'전송 완료');demo().bubble(channel==='agentmail'?'agentmail':'telegram','전송 완료');
     }catch(error){showStatus('share-status',error.message,true);}
     finally{$('share-send').disabled=false;}
   };

@@ -19,7 +19,6 @@ a:hover{text-decoration:underline}
 .brand-mark{font-size:36px;line-height:1;color:var(--lime)}
 .brand strong{font-size:23px;letter-spacing:-1px}
 .brand strong span{font-weight:400;color:var(--muted)}
-.brand-tag{font-size:9px;letter-spacing:1.5px;border:1px solid #40503b;border-radius:4px;color:var(--lime);padding:5px 7px;margin-left:8px}
 .header-actions{display:flex;align-items:center;gap:15px}
 .nv{width:87px;max-height:35px;margin-left:8px;filter:brightness(.95)}
 .status-pill{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--muted);border:1px solid var(--border);padding:8px 11px;border-radius:30px}
@@ -28,33 +27,17 @@ a:hover{text-decoration:underline}
 .quiet-button,.icon-button{background:#ffffff04;border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:12px;transition:background .2s,border-color .2s}
 .quiet-button:hover,.icon-button:hover{background:#ffffff09;border-color:#526459}
 .icon-button{width:34px;height:34px;padding:0;font-size:20px;flex-shrink:0}
-.intro{position:absolute;top:124px;left:42px;pointer-events:none}
-.eyebrow{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:9px;letter-spacing:1.8px;color:var(--mint);display:flex;align-items:center;gap:8px}
-.eyebrow>span{height:5px;width:5px;border-radius:50%;background:var(--mint)}
-h1{font-size:44px;line-height:1.2;letter-spacing:-2px;margin-top:18px;font-weight:750}
-h1 em{font-style:normal;color:var(--lime)}
-.intro p{font-size:12px;line-height:1.8;color:var(--muted);margin-top:16px}
-.missions{position:absolute;top:358px;left:38px;width:280px}
-.section-label{font-size:11px;color:#d2ded8;display:flex;align-items:center;justify-content:space-between;margin-bottom:13px}
-.section-label span{font-size:8px;letter-spacing:1.6px;color:#59716f}
+.missions{position:absolute;top:124px;left:38px;width:280px}
 .mission{display:flex;align-items:center;gap:12px;width:100%;padding:14px 12px;background:linear-gradient(125deg,#15212bba,#0f1721ba);border:1px solid #27363a;border-radius:11px;text-align:left;margin-bottom:9px;transition:transform .25s var(--ease),border-color .25s,background .25s}
 .mission:hover{transform:translateX(5px);border-color:#65d5b870;background:#1a2b30}
 .mission strong{display:block;font-size:13px;font-weight:600;letter-spacing:-.2px}
-.mission small{display:block;font-size:10px;color:var(--muted);margin-top:5px}
-.mission b{margin-left:auto;font:9px ui-monospace,monospace;color:#50645e}
 .mission-icon{height:34px;width:34px;border-radius:9px;display:grid;place-items:center;font-size:24px;border:1px solid #ffffff12;flex-shrink:0}
 .green{color:#7ee9b2;background:#21514040}
 .amber{color:#f4bf67;background:#6c4c2630}
 .violet{color:#b69cf3;background:#4b3d702f}
 .rose{color:#f09abb;background:#79455625}
-.transport-note{display:flex;align-items:center;gap:7px;font-size:9px;color:#64847c;margin-top:17px;white-space:nowrap}
-.transport-note .tiny-dot{background:var(--mint)}
-.stage-label{position:absolute;top:137px;left:370px;right:50px;display:flex;align-items:center;justify-content:space-between;pointer-events:none}
-.stage-label h2{font-size:17px;font-weight:500;color:#b7c7c0;margin-top:9px;letter-spacing:-.5px}
+.stage-label{position:absolute;top:124px;left:370px;right:40px;display:flex;justify-content:flex-end;pointer-events:none}
 .stage-count{font:10px ui-monospace,monospace;letter-spacing:1px;color:#60796e;border:1px solid #2b3e36;border-radius:20px;padding:9px 12px}
-.stage-caption{position:absolute;bottom:192px;left:370px;right:50px;display:flex;align-items:center;gap:7px;font-size:10px;color:#779386;pointer-events:none}
-.stage-caption .tiny-dot{background:var(--mint)}
-.stage-caption-end{margin-left:auto;font:8px ui-monospace,monospace;letter-spacing:1px;color:#435c53}
 #agent-roster{position:absolute;bottom:125px;left:350px;right:35px;display:flex;justify-content:center;gap:5px}
 .agent-button{border:1px solid #24382f;background:#0f1918bb;border-radius:9px;padding:10px 9px;text-align:left;display:flex;align-items:center;gap:7px;font-size:10px;transition:border-color .2s,background .2s;min-width:0}
 .agent-button i{height:6px;width:6px;border-radius:50%;background:var(--agent-color);box-shadow:0 0 7px var(--agent-color)}
@@ -65,10 +48,8 @@ h1 em{font-style:normal;color:var(--lime)}
 .activity-title{width:125px;flex-shrink:0;position:relative;padding-left:15px}
 .activity-title .tiny-dot{position:absolute;top:4px;left:0;background:var(--mint)}
 .activity-title strong{font-size:11px;font-weight:500}
-.activity-title small{display:block;font-size:9px;color:#536d61;margin-top:7px}
 #activity-list{display:flex;gap:27px;align-items:flex-start;list-style:none;flex:1;overflow:hidden;height:42px}
 #activity-list li{min-width:150px;max-width:240px;flex:1;font-size:10px;animation:rise-in .4s var(--ease)}
-#activity-list .empty-activity{color:#587467;font-size:11px;margin-top:8px;max-width:none}
 #activity-list time{font:8px ui-monospace,monospace;color:#597467;display:inline-block;margin-right:6px}
 #activity-list strong{font-size:9px;color:var(--mint);font-weight:500}
 #activity-list p{margin-top:7px;color:#a9bfb0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -104,7 +85,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--mint);box-shadow:0 0 
 .dialog::backdrop{background:#040a10bb;backdrop-filter:blur(7px)}
 .dialog[open]{animation:dialog-in .25s var(--ease)}
 .dialog-head{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:22px}
-.dialog h2{font-size:22px;font-weight:600;letter-spacing:-.6px;margin-top:10px}
+.dialog h2{font-size:22px;font-weight:600;letter-spacing:-.6px}
 .tab-bar{display:flex;border-bottom:1px solid #324638;margin-bottom:20px;gap:8px}
 .tab-bar button{background:transparent;border:0;color:var(--muted);padding:12px 15px;font-size:12px;border-bottom:2px solid transparent}
 .tab-bar button[aria-selected=true]{color:var(--lime);border-color:var(--lime)}
@@ -138,12 +119,9 @@ input:focus,select:focus,textarea:focus{border-color:var(--mint);box-shadow:0 0 
 #browser-live{color:var(--mint)}
 .browser-viewport{aspect-ratio:1.6;display:grid;place-items:center;position:relative}
 #browser-frame{width:100%;display:block}
-#browser-empty{text-align:center;color:var(--muted);padding:20px}
-#browser-empty>span{display:block;font-size:40px;color:var(--mint);margin-bottom:20px}
-#browser-empty strong{font-size:13px;color:#c4d8cb}
-#browser-empty p{font-size:11px;line-height:1.8;margin-top:10px}
+#browser-empty{text-align:center;font-size:12px;color:var(--muted);padding:20px}
 .browser-trace{padding-top:9px}
-#browser-steps{list-style:none;margin-top:20px}
+#browser-steps{list-style:none}
 #browser-steps li{position:relative;padding:0 0 20px 19px;font-size:11px;color:#bdd4c5;animation:rise-in .3s ease}
 #browser-steps li:before{content:"";position:absolute;left:0;top:3px;width:5px;height:5px;background:var(--mint);border-radius:50%}
 #browser-steps li:after{content:"";position:absolute;left:2px;top:12px;bottom:5px;width:1px;background:#344b3d}
@@ -169,64 +147,42 @@ to{opacity:1;transform:translateY(0) scale(1)}
 }
 @keyframes breathe{50%{opacity:.45}
 }
-@media(min-width:1500px){.intro{top:140px}
-h1{font-size:54px}
-.missions{top:400px;width:300px}
+@media(min-width:1500px){.missions{width:300px}
 .mission{padding:17px 14px}
 .stage-label{left:400px}
-.stage-caption{left:400px}
 #agent-roster{left:380px}
 .mission strong{font-size:14px}
 }
 
-@media(max-height:790px) and (min-width:901px){.intro{top:108px}
-h1{font-size:34px;margin-top:12px}
-.intro p{margin-top:10px}
-.missions{top:296px}
+@media(max-height:790px) and (min-width:901px){.missions{top:116px}
 .mission{padding:11px}
 .mission-icon{height:29px;width:29px}
 .stage-label{top:116px}
-.stage-caption{bottom:177px}
 #agent-roster{bottom:116px}
 .activity-dock{bottom:18px;height:70px}
-.transport-note{margin-top:12px}
 }
 
-@media(max-width:1050px){.stage-caption-end{display:none}
-.brand-tag{display:none}
-.header-actions{gap:9px}
+@media(max-width:1050px){.header-actions{gap:9px}
 .agent-button{padding:9px 7px;font-size:9px}
 .agent-button small{display:none}
 .stage-label{left:350px;right:30px}
-.intro{left:30px}
 .missions{left:25px;width:265px}
-.stage-caption{left:335px}
 #agent-roster{left:325px;right:25px;flex-wrap:wrap}
-.intro p{font-size:11px}
 .status-pill{font-size:9px}
 }
 
-@media(max-width:900px){html,body,#wrap{overflow:auto}
-#wrap{min-height:1000px;height:100vh}
+@media(max-width:900px){html{height:auto;overflow-y:auto}
+body{height:auto;overflow:visible}
+#wrap{height:1000px;min-height:1000px;overflow:visible}
 #topbar{height:72px;padding:0 20px}
 .brand strong{font-size:19px}
 .brand-mark{font-size:29px}
 .nv,.status-pill{display:none}
-.intro{top:98px;left:25px}
-h1{font-size:35px;line-height:1.15;margin-top:12px}
-.intro p{font-size:11px}
-.missions{left:auto;right:24px;top:108px;width:calc(47% - 20px)}
-.section-label{font-size:10px}
-.section-label span{display:none}
-.mission{padding:9px;gap:8px;margin-bottom:7px}
+.missions{top:100px;left:25px;right:25px;width:auto;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mission{height:58px;margin:0;padding:11px 9px;gap:8px}
 .mission-icon{width:25px;height:25px;font-size:18px}
 .mission strong{font-size:11px}
-.mission small{font-size:8px;margin-top:4px}
-.mission b{display:none}
-.transport-note{display:none}
-.stage-label{top:410px;left:25px;right:25px}
-.stage-label h2{font-size:14px}
-.stage-caption{bottom:202px;left:25px;right:25px}
+.stage-label{top:260px;left:25px;right:25px}
 #agent-roster{bottom:128px;left:20px;right:20px;flex-wrap:wrap}
 .agent-button{font-size:9px;padding:8px 9px}
 .activity-dock{left:25px;right:25px;bottom:20px;gap:13px}
@@ -248,24 +204,4 @@ h1{font-size:35px;line-height:1.15;margin-top:12px}
 }
 
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
-}
-
-
-@media(max-width:900px){#wrap{height:1220px;min-height:1220px;overflow:visible}
-.intro{top:98px;left:25px}
-.missions{top:285px;left:25px;right:25px;width:auto;display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.section-label{grid-column:1/-1;margin-bottom:2px}
-.mission{height:68px;margin:0;padding:11px 9px}
-.mission strong{font-size:10px}
-.mission small{font-size:8px;line-height:1.5}
-.stage-label{top:487px}
-.stage-caption{bottom:245px}
-#agent-roster{bottom:128px}
-.activity-dock{bottom:20px}
-}
-
-
-@media(max-width:900px){html{height:auto;overflow-y:auto}
-body{height:auto;overflow:visible}
-#wrap{overflow:visible}
 }

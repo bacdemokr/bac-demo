@@ -32,7 +32,7 @@
     const mobile = W <= 900;
     const left = mobile ? 24 : (W >= 1500 ? 380 : 330);
     const right = W - (mobile ? 24 : 40);
-    const top = mobile ? 605 : 245;
+    const top = mobile ? 365 : 210;
     const bottom = H - (mobile ? 310 : 240);
     return { x: (left + right) / 2, y: (top + bottom) / 2, rx: (right - left) * .34, ry: Math.max(95, (bottom - top) * .36), left, right, top, bottom };
   }
@@ -76,8 +76,6 @@
     b.beginPath(); b.ellipse(a.x,a.y+8,55,27,0,0,Math.PI*2); b.fillStyle="#162b24"; b.fill();
     b.strokeStyle="#648e5345"; b.stroke();
     b.font='24px -apple-system,sans-serif'; b.fillStyle="#b8f279"; b.textAlign="center"; b.fillText("✳",a.x,a.y+4);
-    b.font='8px ui-monospace,monospace'; b.fillStyle="#81ad8a"; b.fillText("LOCAL INTELLIGENCE",a.x,a.y+47);
-    b.font='7px ui-monospace,monospace'; b.fillStyle="#466d52"; b.fillText("OBSERVE · PLAN · ACT",a.x,a.y+61);
   }
   function drawNetwork(t) {
     const a = arena();
@@ -390,10 +388,6 @@
     // Fresh start every click: wipe this character's conversation history.
     history[c.id] = [];
 
-    // speech bubble pops above the character: short tagline (not the full intro/first reply)
-    c.bubble = { text: c.tagline || c.intro, until: performance.now() + 6000 };
-
-    addMsg("bot", c.intro);
     inputEl.focus();
 
     // Spark Monitor: don't just greet - auto-pull a live status summary.
@@ -413,7 +407,7 @@
     if (c.live === "telegram") startTgRecv(c);
     // MultiagentBot: offer ready-made feature ideas as clickable chips.
     if (c.live === "multiagent") renderMaSuggestions(c);
-    // Other agents: just greet. Wait for the user to ask before acting.
+    // Other agents wait for the user to ask before acting.
   }
 
   // Small standalone modules suitable for a live coding demo.
@@ -425,11 +419,6 @@
   function renderMaSuggestions(c) {
     const wrap = document.createElement("div");
     wrap.className = "ma-chips";
-    const hint = document.createElement("div");
-    hint.className = "msg bot";
-    hint.style.opacity = ".8";
-    hint.textContent = "Pick a feature for my team to build - or type your own:";
-    msgsEl.appendChild(hint);
     for (const s of MA_SUGGESTIONS) {
       const b = document.createElement("button");
       b.className = "ma-chip";
@@ -571,8 +560,7 @@
         addMsg("bot", reply);
         console.log("[runTurn] rendered reply into panel");
         if (j.screenshot) addImage(j.screenshot);
-        // Only user-initiated turns update the floating bubble; the auto
-        // status/intro turn keeps the short feature tagline shown on click.
+        // Only user-initiated turns update the floating bubble.
         if (!isAuto) {
           const short = j.bubble || reply.replace(/\n+/g, " ").slice(0, 90);
           mine.bubble = { text: short, until: performance.now() + 8000 };
@@ -820,7 +808,7 @@
   // ArxivBot click: read the cron-cached Top 3 announcement and show it fast.
   // No LLM call - the cron already did the work; this is just a file/cache read.
   async function showArxivTop3(c) {
-    const typing = addMsg("bot", "\uD83D\uDCE1 Pulling up my latest arXiv scan\u2026");
+    const typing = addMsg("bot", "논문 조회 중...");
     try {
       const r = await fetch("/bac-arxiv/top3.json?_=" + Date.now());
       const j = await r.json();
@@ -829,11 +817,11 @@
       // tiny beat so it reads as "fetching", then swap in the real cards
       setTimeout(() => {
         if (j.text) typing.innerHTML = renderInline((j.source === "live" ? "" : "참고 논문 모음 - 최신 피드가 비어 있거나 연결되지 않았습니다.\n\n") + j.text);
-        else typing.textContent = "Hmm, my scan came back empty - try again in a moment!";
+        else typing.textContent = "논문이 없습니다.";
         msgsEl.scrollTop = msgsEl.scrollHeight;
       }, 450);
     } catch {
-      typing.textContent = "Couldn't reach my paper feed just now - try again in a sec!";
+      typing.textContent = "논문 조회 실패. 다시 시도하세요.";
     }
   }
 
@@ -853,7 +841,7 @@
         const signature = (j.papers || []).map(p => p.link).sort().join("|");
         const changed = previous && signature !== previous; previous = signature;
         emit("activity", { agent: arx.name, text: j.source === "live" ? "예약 확인: arXiv 피드" : "예약 확인: 참고 논문 모음" });
-        if (activeChar?.id !== arx.id) arx.bubble = { text: changed ? "논문 모음이 변경됐어요 📚" : "논문 모음을 확인했어요 📚", until: performance.now() + 5000 };
+        if (changed && activeChar?.id !== arx.id) arx.bubble = { text: "새 논문", until: performance.now() + 5000 };
       } catch { emit("activity", { agent: arx.name, text: "예약 확인 실패" }); }
     };
     setInterval(ping, 60000); // re-scan once a minute from first click onward
