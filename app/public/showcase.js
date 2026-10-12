@@ -79,7 +79,7 @@
     $('tool-status-list').replaceChildren();
     const rows=[['AI 실행 서비스',runtime?'자동 연결됨':gw.error||'실행 상태 확인 필요'],['브라우저 · CDP',status.browser?.connected?'연결됨':'브라우저 실행 필요'],['GitHub API',gh.connected?gh.repo?`${gh.owner}/${gh.repo}`:'@'+gh.login:gh.error||'연결 전'],['GitHub MCP',gw.agents?.git===false?'설정된 에이전트 없음':'OpenClaw의 git 에이전트에서 설정'],['PM / Dev 협업',status.team?.configured?`설정됨 · ${status.team.repository}`:gh.connected&&!gh.repo?'공개 저장소를 Fork한 뒤 작업 가능':'OpenClaw 및 GitHub 토큰 필요'],['Telegram',tg.connected?'연결됨':'연결 전'],['AgentMail',mail.connected?'연결됨':'연결 전']];
     rows.forEach(([name,state])=>{const row=document.createElement('div'),label=document.createElement('span'),value=document.createElement('small');row.className='tool-row';label.textContent=name;value.textContent=state;row.append(label,value);$('tool-status-list').append(row);});
-    showStatus('telegram-status',tg.connected?`@${tg.bot} · Chat ${tg.chatId}${tg.error?' · 수신 연결 확인 필요':''}`:'Telegram 연결 후 메시지를 주고받을 수 있습니다.',!!tg.error);
+    showStatus('telegram-status',tg.connected?`@${tg.bot} · Chat ${tg.chatId}${tg.error?' · 수신 연결 확인 필요':''}`:tg.error||'Telegram 연결 후 메시지를 주고받을 수 있습니다.',!!tg.error);
     $('telegram-send').disabled=telegramSending||!tg.connected;if(demo()?.getActive()?.id==='github')$('chat-role').textContent=githubRole();syncShare();syncChat();demo()?.sync();updateBrowserButtons();
     const job=status.team?.activeJobId;if(job&&!resumed.has(job)&&demo()?.getAgents().length){resumed.add(job);demo().resumeTeam(job);}
   }

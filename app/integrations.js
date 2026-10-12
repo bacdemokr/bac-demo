@@ -9,6 +9,19 @@ async function providerRequest(fetcher, url, options, provider) {
   let response;
   try { response = await fetcher(url, { redirect: "error", signal: AbortSignal.timeout(12000), ...options }); }
   catch { throw new Problem(`${provider}에 연결할 수 없습니다. 네트워크와 연결 설정을 확인해주세요.`, 502); }
+  if (/text\/html/i.test(response.headers?.get?.('content-type') || '')) {
+    let html='';try { html=await response.text(); } catch {}
+    const blocked=body=>/<title[^>]*>\s*Website Filtered\s*<\/title>/i.test(body);
+    let filtered=blocked(html);
+    // Some filters return a generic POST 404 but a named block page for GET.
+    // Probe the same API origin without credentials; never retry a message send.
+    if(!filtered&&provider==='Telegram')try{
+      const probe=await fetcher('https://api.telegram.org/',{redirect:'error',signal:AbortSignal.timeout(2000)});
+      filtered=blocked(await probe.text());
+    }catch{}
+    if (filtered) throw new Problem(`${provider} API 접근이 현재 네트워크의 웹 필터에서 차단되었습니다. 허용된 네트워크에서 다시 연결해주세요.`, 502);
+    throw new Problem(`${provider}에서 올바른 응답을 받지 못했습니다.`, 502);
+  }
   let data;
   try { data = await response.json(); } catch { throw new Problem(`${provider}에서 올바른 응답을 받지 못했습니다.`, 502); }
   if (!data || typeof data !== "object" || Array.isArray(data)) throw new Problem(`${provider}에서 올바른 응답을 받지 못했습니다.`, 502);

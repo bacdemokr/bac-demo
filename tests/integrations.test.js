@@ -42,6 +42,16 @@ test('Provider failures never disclose credentials or upstream response bodies',
   const m=new AgentMailBridge({fetcher:async()=>{throw new Error('https://host/'+token);}});
   await assert.rejects(m.configure({apiKey:token,inboxId:'fixture@agentmail.to'}),e=>!e.message.includes(token));
 });
+test('A network filter HTML page is identified without disclosing its URL or credential',async()=>{
+  const t=new TelegramBridge({fetcher:async()=>new Response('<html><title>Website Filtered</title><body>'+token+'</body></html>',{status:200,headers:{'Content-Type':'text/html; charset=utf-8'}})});
+  await assert.rejects(t.configure({token,chatId:'12345'}),e=>e.status===502&&e.message.includes('웹 필터')&&!e.message.includes(token));
+  assert.equal(t.public().connected,false);t.stop();
+});
+test('Generic filtered POST failure probes only the credential-free API origin and never retries a write',async()=>{
+  const calls=[],t=new TelegramBridge({fetcher:async(url,options)=>{calls.push({url,options});return new Response(url==='https://api.telegram.org/'?'<title>Website Filtered</title>':'<title>404 Not Found</title>',{status:404,headers:{'Content-Type':'text/html'}});}});
+  await assert.rejects(t.configure({token,chatId:'12345'}),e=>e.message.includes('웹 필터')&&!e.message.includes(token));
+  assert.equal(calls.length,2);assert.equal(calls[1].url,'https://api.telegram.org/');assert.equal(calls[1].options.headers,undefined);assert.equal(calls[1].options.method,undefined);t.stop();
+});
 
 test('AgentMail uses encoded inbox paths and sends only reviewed plain text',async()=>{
   const calls=[];const m=new AgentMailBridge({fetcher:async(url,opts)=>{
