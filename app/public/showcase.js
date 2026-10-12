@@ -38,6 +38,7 @@
   window.addEventListener('bac:activity',e=>activity(e.detail.agent,e.detail.text));
   window.addEventListener('bac:result',e=>{if(e.detail.text)results.set(e.detail.agent,e.detail.text);syncChat();});
   window.addEventListener('bac:state',syncChat);
+  window.addEventListener('bac:github-changed',()=>{++connectionRevision;refreshStatus();});
   window.addEventListener('bac:agent',e=>{
     const a=e.detail;$('agent-actions').replaceChildren();if(!a){syncChat();return;}$('chat-role').textContent=a.id==='github'?githubRole():roles[a.id]||a.role;
     const button=(text,fn,ai=false)=>{const b=document.createElement('button');b.textContent=text;b.onclick=fn;if(ai)b.dataset.ai='true';$('agent-actions').append(b);};
@@ -63,15 +64,6 @@
   function selectTab(tab){document.querySelectorAll('[data-tab]').forEach(b=>{const active=b.dataset.tab===tab;b.setAttribute('aria-selected',String(active));b.tabIndex=active?0:-1;$('panel-'+b.dataset.tab).hidden=!active;});}
   function openSettings(tab='telegram'){if(tab==='gateway')tab='tools';selectTab(tab);if(!$('settings-dialog').open)$('settings-dialog').showModal();refreshStatus();}
   $('settings-open').onclick=()=>{demo().closeChat({restoreFocus:false});openSettings();};bindTabs('data-tab',selectTab);
-  let deletePreview=null,deleteRunning=false;
-  function confirmRepositoryDelete(preview){if(deleteRunning)return;deletePreview=preview;$('github-delete-repository').textContent=preview.repository;$('github-delete-parent').textContent=preview.parent?'원본 '+preview.parent+'는 유지됩니다.':'';$('github-delete-confirmation').value='';$('github-delete-confirmation').placeholder=preview.repository;$('github-delete-submit').disabled=true;showStatus('github-delete-status','');if(!$('github-delete-dialog').open)$('github-delete-dialog').showModal();$('github-delete-confirmation').focus();}
-  $('github-delete-confirmation').oninput=()=>{$('github-delete-submit').disabled=deleteRunning||$('github-delete-confirmation').value!==deletePreview?.repository;};
-  $('github-delete-dialog').addEventListener('close',()=>{if(!deleteRunning)deletePreview=null;$('github-delete-confirmation').value='';});
-  $('github-delete-form').onsubmit=async e=>{e.preventDefault();if(deleteRunning||!deletePreview)return;const preview=deletePreview,confirmation=$('github-delete-confirmation').value;if(confirmation!==preview.repository)return;deleteRunning=true;$('github-delete-submit').disabled=true;$('github-delete-confirmation').disabled=true;showStatus('github-delete-status','삭제 요청 중...');
-    try{const result=await api('/api/integrations/github/delete',{id:preview.id,confirmation});++connectionRevision;activity('GitHub',result.reply);demo()?.notifyAgent('github',result.reply);if($('github-delete-dialog').open)$('github-delete-dialog').close();await refreshStatus();}
-    catch(error){showStatus('github-delete-status',error.message,true);demo()?.notifyAgent('github','삭제 실패: '+error.message);}
-    finally{deleteRunning=false;deletePreview=null;$('github-delete-confirmation').disabled=false;$('github-delete-submit').disabled=true;}
-  };
   let modelBusy=false;
   const modelNames={local:'로컬 모델',nvidia:'NVIDIA Inference API'};
   function renderModels(){
@@ -341,6 +333,6 @@
     catch(e){showStatus('share-status',e.message,true);if(!$('share-dialog').open)toast(e.message);}
     finally{shareSending=false;controls.forEach(b=>b.disabled=false);}
   };
-  window.BacShowcase={confirmRepositoryDelete,browse,inbox:openInbox,settings:openSettings,canRun};refreshStatus();
+  window.BacShowcase={browse,inbox:openInbox,settings:openSettings,canRun};refreshStatus();
   setInterval(()=>{if(!document.hidden)refreshStatus();},15000);
 })();

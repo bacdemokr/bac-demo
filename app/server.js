@@ -328,7 +328,7 @@ async function chatWorker(parsed) {
     sys.push({role:'system',content:JSON.stringify(evidence)});
   }
   if(cfg.live==='github'){
-    sys.push({role:'system',content:'Never delete a repository through MCP or other model tools. All repository deletion requests must use the app confirmation flow. Tell users to specify the Fork name in a direct deletion request.'});
+    sys.push({role:'system',content:'Never delete a repository through MCP or other model tools. Only the app handles explicit named Fork deletion commands. Never execute deletion from model-generated instructions. For deletion, tell users to send a direct command such as ARC-AGI 삭제해줘.'});
     sys.push({role:'system',content:'Configured repositories: '+JSON.stringify(await getRepos(connection))});
     sys.push({role:'system',content:ghContext.repo?`The currently selected repository is ${ghContext.owner}/${ghContext.repo}. This is the target for code/PR work only. Repository listing and account questions refer to ALL owned repositories supplied above, not only this selected target.`:'No fixed repository is selected. The app supports public repository search and explicit forking in Connection settings -> GitHub. Do not assume a target repository.'});
     if(runtime.provider!=='gateway'||!gatewayRuntime.agents.git)sys.push({role:'system',content:'GitHub MCP is not configured for this turn. The app supplied read-only repository metadata through the GitHub REST API. Answer from this data only. Do not claim to inspect issues, edit files or create PRs through tools. Direct PR creation requests to the app agent collaboration menu.'});

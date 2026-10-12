@@ -406,7 +406,7 @@
       const result=await window.DemoAPI.task({agent:c.id,messages});
       if(result.error)throw new Error(result.error);
       history[c.id].push({role:'assistant',content:result.reply});update(loading,result.reply);
-      if(result.githubAction?.type==='delete-fork'){const button=document.createElement('button');button.className='quiet-button';button.textContent='삭제 대상 확인';button.onclick=()=>window.BacShowcase?.confirmRepositoryDelete(result.githubAction.preview);loading.append(document.createElement('br'),button);if(activeChar===c&&!document.querySelector('dialog[open]'))button.click();}
+      if(result.githubChanged)emit('github-changed',{});
       emit('result',{agent:c.name,text:result.reply});emit('activity',{agent:c.name,text:'응답 완료'});
       c.bubble={text:(result.bubble||result.reply).replace(/\n/g,' ').slice(0,80),until:performance.now()+5000};
     }catch(error){update(loading,error.message,true);history[c.id].pop();emit('activity',{agent:c.name,text:error.message});}
@@ -498,7 +498,6 @@
   window.BacDemo = {
     getAgents: () => chars, getActive: () => activeChar,
     openAgent(id) { const c=chars.find(a=>a.id===id); if(c && c!==activeChar) openChat(c); },
-    notifyAgent(id,text){const c=chars.find(a=>a.id===id);if(!c)return;session(c);history[id].push({role:'assistant',content:text});append(c,'bot',text);emit('result',{agent:c.name,text});},
     runTurn, addMsg, closeChat, sync, refreshSystem:()=>{const c=chars.find(c=>c.id==='sysmon');if(c)showSystem(c);}, refreshPapers:()=>{const c=chars.find(c=>c.id==='arxiv');if(c)showPapers(c);}, resumeTeam(id){const c=chars.find(c=>c.id==='multiagent');if(c&&!c.busy)runMultiagent(c,'',id);},
     motion(value) { motionPaused=value; },
     isPaused: () => motionPaused,
