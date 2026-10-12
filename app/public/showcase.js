@@ -12,7 +12,7 @@
   const roles={sysmon:'시스템 상태 · 로컬 도구',github:'GitHub 작업 · OpenClaw MCP',multiagent:'PM / Dev 협업 · GitHub',arxiv:'논문 리서치 · arXiv RSS'};
   const directModel=()=>!!status.ai&&status.ai.provider!=='gateway';
   const modelReady=()=>directModel()?!!status.ai.configured:!!(status.gateway?.reachable&&status.gateway?.configured);
-  const canRun=id=>!!(modelReady()&&(id!=='github'||!directModel()&&status.gateway?.agents?.git!==false||status.github?.connected)&&(id!=='multiagent'||status.team?.configured&&!githubForking&&!status.github?.forking));
+  const canRun=id=>id==='github'&&status.github?.connected?true:!!(modelReady()&&(id!=='github'||!directModel()&&status.gateway?.agents?.git!==false||status.github?.connected)&&(id!=='multiagent'||status.team?.configured&&!githubForking&&!status.github?.forking&&!status.github?.deleting));
   const githubRole=()=>directModel()||status.gateway?.agents?.git===false?'저장소 조회 · GitHub API':roles.github;
   const toast=text=>{$('toast').textContent=text;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,4500);};
   function activity(agent,text){
@@ -42,7 +42,7 @@
     const a=e.detail;$('agent-actions').replaceChildren();if(!a){syncChat();return;}$('chat-role').textContent=a.id==='github'?githubRole():roles[a.id]||a.role;
     const button=(text,fn,ai=false)=>{const b=document.createElement('button');b.textContent=text;b.onclick=fn;if(ai)b.dataset.ai='true';$('agent-actions').append(b);};
     if(a.id==='sysmon')button('상태 새로고침',()=>demo().refreshSystem());
-    if(a.id==='github'){button('저장소 조회',()=>demo().runTurn(a,'내 GitHub 저장소 목록을 조회해줘.'),true);button('공개 저장소 Fork',()=>openSettings('github'));}
+    if(a.id==='github'){button('내 저장소 목록',()=>demo().runTurn(a,'내 GitHub 저장소 목록을 조회해줘.'),true);button('공개 저장소 Fork',()=>openSettings('github'));}
     if(a.id==='arxiv')button('논문 새로고침',()=>demo().refreshPapers());
     if(a.id==='multiagent'&&a.teamJobId)button('진행 상태 확인',()=>demo().resumeTeam(a.teamJobId));
     syncChat();
@@ -63,6 +63,15 @@
   function selectTab(tab){document.querySelectorAll('[data-tab]').forEach(b=>{const active=b.dataset.tab===tab;b.setAttribute('aria-selected',String(active));b.tabIndex=active?0:-1;$('panel-'+b.dataset.tab).hidden=!active;});}
   function openSettings(tab='telegram'){if(tab==='gateway')tab='tools';selectTab(tab);if(!$('settings-dialog').open)$('settings-dialog').showModal();refreshStatus();}
   $('settings-open').onclick=()=>{demo().closeChat({restoreFocus:false});openSettings();};bindTabs('data-tab',selectTab);
+  let deletePreview=null,deleteRunning=false;
+  function confirmRepositoryDelete(preview){if(deleteRunning)return;deletePreview=preview;$('github-delete-repository').textContent=preview.repository;$('github-delete-parent').textContent=preview.parent?'원본 '+preview.parent+'는 유지됩니다.':'';$('github-delete-confirmation').value='';$('github-delete-confirmation').placeholder=preview.repository;$('github-delete-submit').disabled=true;showStatus('github-delete-status','');if(!$('github-delete-dialog').open)$('github-delete-dialog').showModal();$('github-delete-confirmation').focus();}
+  $('github-delete-confirmation').oninput=()=>{$('github-delete-submit').disabled=deleteRunning||$('github-delete-confirmation').value!==deletePreview?.repository;};
+  $('github-delete-dialog').addEventListener('close',()=>{if(!deleteRunning)deletePreview=null;$('github-delete-confirmation').value='';});
+  $('github-delete-form').onsubmit=async e=>{e.preventDefault();if(deleteRunning||!deletePreview)return;const preview=deletePreview,confirmation=$('github-delete-confirmation').value;if(confirmation!==preview.repository)return;deleteRunning=true;$('github-delete-submit').disabled=true;$('github-delete-confirmation').disabled=true;showStatus('github-delete-status','삭제 요청 중...');
+    try{const result=await api('/api/integrations/github/delete',{id:preview.id,confirmation});++connectionRevision;activity('GitHub',result.reply);demo()?.notifyAgent('github',result.reply);if($('github-delete-dialog').open)$('github-delete-dialog').close();await refreshStatus();}
+    catch(error){showStatus('github-delete-status',error.message,true);demo()?.notifyAgent('github','삭제 실패: '+error.message);}
+    finally{deleteRunning=false;deletePreview=null;$('github-delete-confirmation').disabled=false;$('github-delete-submit').disabled=true;}
+  };
   let modelBusy=false;
   const modelNames={local:'로컬 모델',nvidia:'NVIDIA Inference API'};
   function renderModels(){
@@ -117,9 +126,9 @@
     if(!$('telegram-form').dataset.pending)showStatus('tg-status',tg.connected?`@${tg.bot} · Chat ${tg.chatId}${sourceNote(tg)}${tg.error?' · 수신 연결 확인 필요':''}`:tg.error||(tg.configured?'연결 확인 중...':'연결 전'),!!tg.error);
     if(!$('mail-connect-form').dataset.pending)showStatus('mail-status',mail.connected?`연결됨 · ${mail.inboxId}${sourceNote(mail)}`:mail.error||(mail.configured?'연결 확인 중...':'연결 전'),!!mail.error);
     if(!$('github-form').dataset.pending)showStatus('gh-status',gh.connected?`연결됨 · ${gh.repo?gh.owner+'/'+gh.repo:'@'+gh.login}${sourceNote(gh)}${gh.repo&&!gh.canWrite?' · 저장소 쓰기 불가':''}`:gh.error|| (gh.configured?'연결 확인 중...':'연결 전'),!!gh.error);
-    $('gh-search').disabled=$('gh-random').disabled=githubSearching||githubForking||!gh.connected;
-    $('gh-fork-action').disabled=githubForking||!!gh.forking||!gh.connected||!$('gh-source').value;
-    $('gh-work').hidden=!gh.canWrite||githubForking||!!gh.forking;
+    $('gh-search').disabled=$('gh-random').disabled=githubSearching||githubForking||!!gh.deleting||!gh.connected;
+    $('gh-fork-action').disabled=githubForking||!!gh.forking||!gh.connected||!$('gh-source').value||!!gh.deleting;
+    $('gh-work').hidden=!gh.canWrite||githubForking||!!gh.forking||!!gh.deleting;
     $('tg-disconnect').disabled=!!$('telegram-form').dataset.pending||!tg.configured;$('mail-disconnect').disabled=!!$('mail-connect-form').dataset.pending||!mail.configured;
     $('gh-disconnect').disabled=!!$('github-form').dataset.pending||!gh.configured;
     renderConnectionCards();renderModels();
@@ -332,6 +341,6 @@
     catch(e){showStatus('share-status',e.message,true);if(!$('share-dialog').open)toast(e.message);}
     finally{shareSending=false;controls.forEach(b=>b.disabled=false);}
   };
-  window.BacShowcase={browse,inbox:openInbox,settings:openSettings,canRun};refreshStatus();
+  window.BacShowcase={confirmRepositoryDelete,browse,inbox:openInbox,settings:openSettings,canRun};refreshStatus();
   setInterval(()=>{if(!document.hidden)refreshStatus();},15000);
 })();

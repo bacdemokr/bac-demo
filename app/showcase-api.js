@@ -49,7 +49,10 @@ function createShowcase({ telegramToken = "", telegramConfig = {token:telegramTo
           probe(browser.endpoint + "/json/version"),
         ]);
         respond(res, 200, { gateway: { ...gatewayInfo(), reachable: gatewayReachable, configured: !!resolve(gatewayToken), url:resolve(gateway) }, browser: { connected: browserConnected }, ...(models?{models:models.public()}:{}), github:github.public(), telegram: telegram.public(), agentmail: mail.public(), ...capabilities() });
-      } else if (p === '/api/integrations/github/repositories' && req.method === 'GET') respond(res,200,await github.repositories(url.searchParams.get('q')||''));
+      } else if(p==='/api/integrations/github/owned'&&req.method==='GET')respond(res,200,await github.ownedRepositories());
+      else if(p==='/api/integrations/github/delete-preview'&&req.method==='POST')respond(res,200,await github.prepareDelete((await readJSON(req)).repository));
+      else if(p==='/api/integrations/github/delete'&&req.method==='POST')respond(res,200,await github.deleteFork(await readJSON(req)));
+      else if (p === '/api/integrations/github/repositories' && req.method === 'GET') respond(res,200,await github.repositories(url.searchParams.get('q')||''));
       else if (p === '/api/integrations/github/forks' && req.method === 'POST') respond(res,202,github.createFork(await readJSON(req)));
       else if (/^\/api\/integrations\/github\/forks\/[\w-]+$/.test(p) && req.method === 'GET') respond(res,200,github.forkStatus(p.split('/').pop()));
       else if (p === '/api/integrations/github' && req.method === 'GET') respond(res,200,github.public());

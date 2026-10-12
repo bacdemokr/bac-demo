@@ -25,6 +25,8 @@ const fs = require("fs");
 const path = require("path");
 const { execFile } = require("child_process");
 const {GitHubConnection}=require('./github-connection');
+const {githubCommand}=require('./github-chat');
+async function githubChatCommand(messages){return githubCommand(github,messages);}
 const {loadConnections}=require('./api-config');
 let connections;
 try { connections=loadConnections(); }
@@ -43,7 +45,7 @@ const PORT = process.env.PORT || 8000;
 // 'git' agent's GitHub MCP MUST belong to this same account.
 const GH_OWNER = connections.github.owner;
 const GH_REPO = connections.github.repo;
-const github=new GitHubConnection({...connections.github,canConfigure:()=>![...MA_JOBS.values()].some(j=>!j.done)});
+const github=new GitHubConnection({...connections.github,targetFile:path.join(process.env.BAC_STATE_DIR||path.join(__dirname,'..','.bac'),'github-target.json'),canConfigure:()=>![...MA_JOBS.values()].some(j=>!j.done)});
 function githubAgent(){return gatewayRuntime.agents.git?routeAgent('git'):github.public().connected?routeAgent('bac'):routeAgent('git');}
 
 // Dedicated Telegram bot token (a SEPARATE bot from OpenClaw's own, so our
@@ -296,42 +298,7 @@ async function getArxivTop3() {
   try {return await arxivPending;} finally {arxivPending=null;}
 }
 
-// Fetch the bacdemokr account's repositories from the public GitHub API.
-let _repoCache = { at: 0, data: null, revision:-1 };
-async function getRepos(connection) {
-  if(connection){
-    if(!connection.repo){const data=await github.request(connection,'GET',`/users/${encodeURIComponent(connection.login)}/repos?per_page=30&sort=updated`);return Array.isArray(data)?data.map(r=>({name:r.full_name,description:r.description,url:r.html_url,fork:r.fork})):[];}
-    const c=connection,data=await github.request(c,'GET',`/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}`);
-    return [{name:data.name,description:data.description,language:data.language,stars:data.stargazers_count,url:data.html_url,fork:data.fork,updated:data.updated_at}];
-  }
-  return new Promise((resolve) => {
-    // small cache so rapid clicks don't hammer the API
-    if (_repoCache.revision===github.revision && _repoCache.data && Date.now() - _repoCache.at < 30000) {
-      return resolve(_repoCache.data);
-    }
-    fetch(`https://api.github.com/users/${GH_OWNER}/repos?per_page=100&sort=updated`, {
-      signal: AbortSignal.timeout(8000),
-      headers: { "User-Agent": "bac-demo", Accept: "application/vnd.github+json" },
-    })
-      .then((r) => r.json())
-      .then((arr) => {
-        const list = Array.isArray(arr)
-          ? arr.map((r) => ({
-              name: r.name,
-              description: r.description,
-              language: r.language,
-              stars: r.stargazers_count,
-              url: r.html_url,
-              fork: r.fork,
-              updated: r.updated_at,
-            }))
-          : [];
-        _repoCache = { at: Date.now(), data: list, revision:github.revision };
-        resolve(list);
-      })
-      .catch(() => resolve(_repoCache.revision===github.revision?_repoCache.data || []:[]));
-  });
-}
+async function getRepos(connection){return connection?(await github.ownedRepositories(connection)).repositories:[];}
 
 async function handleSysInfo(res) {
   const info = await getSysInfo();
@@ -341,6 +308,7 @@ async function handleSysInfo(res) {
 // Validated, same-origin POST starts a task. Polling never consumes its result.
 async function chatWorker(parsed) {
   const cfg = AGENTS[parsed.agent];
+  if(cfg.live==='github'){const result=await githubChatCommand(parsed.messages);if(result)return result;}
   const ghContext=cfg.live==='github'?github.public():null,connection=ghContext?.connected?github.requireConnection():null;
   const runtime=aiSnapshot(),agent=runtime.provider==='gateway'&&cfg.agent==='git'?(gatewayRuntime.agents.git?'git':'bac'):cfg.agent||'bac';
   const messages = parsed.messages.map(m => ({...m}));
@@ -360,15 +328,16 @@ async function chatWorker(parsed) {
     sys.push({role:'system',content:JSON.stringify(evidence)});
   }
   if(cfg.live==='github'){
+    sys.push({role:'system',content:'Never delete a repository through MCP or other model tools. All repository deletion requests must use the app confirmation flow. Tell users to specify the Fork name in a direct deletion request.'});
     sys.push({role:'system',content:'Configured repositories: '+JSON.stringify(await getRepos(connection))});
-    sys.push({role:'system',content:ghContext.repo?`The currently selected repository is ${ghContext.owner}/${ghContext.repo}. Use this repository unless the user specifies another.`:'No fixed repository is selected. The app supports public repository search and explicit forking in Connection settings -> GitHub. Do not assume a target repository.'});
+    sys.push({role:'system',content:ghContext.repo?`The currently selected repository is ${ghContext.owner}/${ghContext.repo}. This is the target for code/PR work only. Repository listing and account questions refer to ALL owned repositories supplied above, not only this selected target.`:'No fixed repository is selected. The app supports public repository search and explicit forking in Connection settings -> GitHub. Do not assume a target repository.'});
     if(runtime.provider!=='gateway'||!gatewayRuntime.agents.git)sys.push({role:'system',content:'GitHub MCP is not configured for this turn. The app supplied read-only repository metadata through the GitHub REST API. Answer from this data only. Do not claim to inspect issues, edit files or create PRs through tools. Direct PR creation requests to the app agent collaboration menu.'});
   }
   if(cfg.live==='arxiv'){const papers=await getArxivTop3();sys.push({role:'system',content:JSON.stringify({source:arxivSource,papers})});}
   return completeAI({runtime,agent,model:cfg.model,messages:[...sys,...messages]});
 }
 const chatJobs=new TaskJobs(chatWorker);
-function startJob(parsed,res){validateMessages(parsed,AGENTS);if(parsed.agent==='multiagent')throw new Problem('협업 작업 메뉴를 사용해주세요.');if(!aiReady())throw new Problem('AI 모델 연결을 확인해주세요.',409);if(models.active==='gateway'){if(AGENTS[parsed.agent].agent==='git')githubAgent();else routeAgent(AGENTS[parsed.agent].agent||'bac');}send(res,202,chatJobs.create(parsed));}
+function startJob(parsed,res){validateMessages(parsed,AGENTS);if(parsed.agent==='multiagent')throw new Problem('협업 작업 메뉴를 사용해주세요.');if(!aiReady()&&!(parsed.agent==='github'&&github.public().connected))throw new Problem('AI 모델 연결을 확인해주세요.',409);if(models.active==='gateway'&&!(parsed.agent==='github'&&github.public().connected)){if(AGENTS[parsed.agent].agent==='git')githubAgent();else routeAgent(AGENTS[parsed.agent].agent||'bac');}send(res,202,chatJobs.create(parsed));}
 
 // ----- OrchestratorAgent orchestration -----------------------------------------
 // Orchestrator spawns a PM subagent (plans) then a Dev subagent (ships a real
@@ -423,7 +392,7 @@ async function callAgent(agentId,sys,userText,model,timeoutMs,runtime){
 function maStartJob(parsed,res){
   validateMessages({...parsed,agent:'multiagent'},AGENTS);
   if(!aiReady())throw new Problem('AI 모델 연결을 확인해주세요.',409);
-  if(github.forking)throw new Problem('Fork가 준비된 뒤 협업 작업을 시작해주세요.',409);
+  if(github.forking||github.deleting)throw new Problem('GitHub 작업이 끝난 뒤 협업 작업을 시작해주세요.',409);
   const connection=github.requireConnection();
   if(!connection.repo)throw new Problem('먼저 공개 저장소를 Fork하거나 기존 작업 저장소를 선택해주세요.',409);
   if(!connection.canWrite)throw new Problem('이 저장소에 쓸 수 없습니다. 계정 권한과 저장소 상태를 확인해주세요.',409);
@@ -561,7 +530,7 @@ const showcase = createShowcase({ github, models, telegramConfig:connections.tel
     return async(system,user,timeout)=>(await completeAI({runtime,agent:'bac',model:process.env.BROWSER_MODEL||DEMO_MODEL,timeout,messages:[{role:'system',content:system},{role:'user',content:user}]})).reply;
   },
   gatewayInfo:()=>({automatic:true,source:gatewayRuntime.source,agent:gatewayRuntime.agent,agents:{git:!!gatewayRuntime.agents.git},error:gatewayRuntime.error}),
-  capabilities:()=>{const g=github.public();return {ai:{provider:models.active,configured:aiReady(),model:models.active==='gateway'?DEMO_MODEL||gatewayRuntime.model||'':models.public().profiles[models.active]?.model},team:{configured:aiReady()&&g.connected&&g.canWrite&&!g.forking,repository:g.repo?`${g.owner}/${g.repo}`:'',activeJobId:[...MA_JOBS.values()].find(j=>!j.done)?.id||null}};}
+  capabilities:()=>{const g=github.public();return {ai:{provider:models.active,configured:aiReady(),model:models.active==='gateway'?DEMO_MODEL||gatewayRuntime.model||'':models.public().profiles[models.active]?.model},team:{configured:aiReady()&&g.connected&&g.canWrite&&!g.forking&&!g.deleting,repository:g.repo?`${g.owner}/${g.repo}`:'',activeJobId:[...MA_JOBS.values()].find(j=>!j.done)?.id||null}};}
 });
 
 const server=http.createServer(async(req,res)=>{

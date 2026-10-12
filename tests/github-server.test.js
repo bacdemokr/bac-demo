@@ -9,6 +9,7 @@ test('actual app uses runtime credentials and target immediately for read-only c
  const provider=http.createServer(async(req,res)=>{
   let raw='';for await(const chunk of req)raw+=chunk;calls.push({method:req.method,path:req.url,auth:req.headers.authorization,body:raw?JSON.parse(raw):null});
   res.setHeader('Content-Type','application/json');
+  if(req.url.startsWith('/user/repos'))return res.end(JSON.stringify(['bac-demo','ai-studio','bac-snu-demo','ARC-AGI','dynamo'].map((name,id)=>({id:id+1,owner:{login:'fixture-user'},name,description:'Verified runtime repository.',default_branch:'main'}))));
   if(req.url==='/user')return res.end(JSON.stringify({login:'fixture-user'}));
   if(req.url==='/repos/runtime-owner/runtime-repo')return res.end(JSON.stringify({owner:{login:'runtime-owner'},name:'runtime-repo',description:'Verified runtime repository.',default_branch:'trunk',permissions:{push:true}}));
   if(req.url.endsWith('/git/ref/heads/trunk'))return res.end(JSON.stringify({object:{sha:'fixture-sha'}}));
@@ -28,12 +29,13 @@ test('actual app uses runtime credentials and target immediately for read-only c
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'runtime-github-')),config=path.join(root,'openclaw.json');
  await fs.writeFile(config,JSON.stringify({gateway:{port:gateway.address().port,auth:{token:'gateway-fixture'}},agents:{entries:[{id:'fixture-host',default:true}]}}));
  const port=await freePort(),base='http://127.0.0.1:'+port;
- const child=spawn(process.execPath,['--require',path.resolve(__dirname,'github-fetch-fixture.cjs'),'app/server.js'],{cwd:path.resolve(__dirname,'..'),env:{...process.env,PORT:String(port),OPENCLAW_CONFIG_PATH:config,GATEWAY_URL:'',GATEWAY_TOKEN:'',GITHUB_TOKEN:'',GH_OWNER:'default-owner',GH_REPO:'default-repo',GITHUB_FIXTURE_URL:'http://127.0.0.1:'+provider.address().port,TG_BOT_TOKEN:'',TG_CHAT_ID:'',AGENTMAIL_API_KEY:'',AGENTMAIL_INBOX_ID:''},stdio:'ignore'});
+ const child=spawn(process.execPath,['--require',path.resolve(__dirname,'github-fetch-fixture.cjs'),'app/server.js'],{cwd:path.resolve(__dirname,'..'),env:{...process.env,BAC_STATE_DIR:root,PORT:String(port),OPENCLAW_CONFIG_PATH:config,GATEWAY_URL:'',GATEWAY_TOKEN:'',GITHUB_TOKEN:'',GH_OWNER:'default-owner',GH_REPO:'default-repo',GITHUB_FIXTURE_URL:'http://127.0.0.1:'+provider.address().port,TG_BOT_TOKEN:'',TG_CHAT_ID:'',AGENTMAIL_API_KEY:'',AGENTMAIL_INBOX_ID:''},stdio:'ignore'});
  const post=(route,data)=>fetch(base+route,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
  try{
   for(let i=0;i<100;i++){try{if((await fetch(base+'/api/agents')).ok)break;}catch{}await wait(30);}
   const connected=await post('/api/integrations/github',{token,owner:'runtime-owner',repo:'runtime-repo'});assert.equal(connected.status,200);assert(!(await connected.text()).includes(token));assert(calls.every(c=>c.method==='GET'));
   const status=await (await fetch(base+'/api/showcase/status')).json();assert.equal(status.team.repository,'runtime-owner/runtime-repo');assert.equal(status.team.configured,true);assert.equal(status.gateway.agents.git,false);
+  const list=await(await post('/api/tasks',{agent:'github',messages:[{role:'user',content:'내 저장소 목록을 보여줘'}]})).json();let listed;for(let i=0;i<100;i++){listed=await(await fetch(base+'/api/tasks/'+list.jobId)).json();if(listed.status==='done')break;await wait(20);}assert(listed.reply.includes('저장소 5개'));for(const name of ['bac-demo','ai-studio','bac-snu-demo','ARC-AGI','dynamo'])assert(listed.reply.includes('fixture-user/'+name));
   const chat=await (await post('/api/tasks',{agent:'github',messages:[{role:'user',content:'저장소를 알려줘.'}]})).json();let result;
   for(let i=0;i<100;i++){result=await (await fetch(base+'/api/tasks/'+chat.jobId)).json();if(result.status==='done')break;await wait(20);}assert.equal(result.status,'done');assert(result.reply.includes('Verified runtime repository'));
   const started=await post('/api/team/jobs',{requestId:'runtime-github-job-123',messages:[{role:'user',content:'Create a demo add module.'}]});assert.equal(started.status,202);const job=await started.json();await reachedPM;

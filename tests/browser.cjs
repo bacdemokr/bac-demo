@@ -218,6 +218,7 @@ async function freePort(){const s=http.createServer();await new Promise(r=>s.lis
     await require('./restaurants-browser.cjs')({page,cdpPort});assert.deepEqual(errors,[]);
     await require('./github-browser.cjs')({page});assert.deepEqual(errors,[]);
     await require('./models-browser.cjs')({page});assert.deepEqual(errors,[]);
+    await require('./github-delete-browser.cjs')({page});assert.deepEqual(errors,[]);
 
   }finally{
     if(chrome)for(const context of chrome.contexts()){await context.unrouteAll({behavior:'ignoreErrors'});await context.close();}

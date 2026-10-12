@@ -13,6 +13,7 @@ NVIDIA Spark의 로컬 OpenClaw gateway를 사용하는 에이전트 데모입�
 - 실제 브라우저 탐색: Naver / Daum / Amazon 페이지를 Chromium에서 열고 스크롤합니다. 화면 캡처와 실제 실행 단계, 추출한 링크를 함께 표시합니다. 검색과 요약은 같은 창에서 진행하고 결과를 공유할 수 있습니다.
 - 모델 연결: **연결 설정 → 모델**에서 로컬 OpenAI 호환 서버(vLLM, Ollama 등)와 NVIDIA Inference API를 각각 등록하고 사용할 연결을 선택합니다. 서버에서 모델 목록을 읽고 짧은 응답을 확인한 뒤 적용합니다. 선택한 연결은 에이전트 대화·브라우저 조사·PM/Dev 코드 생성에 함께 적용됩니다. 작업 중에는 모델을 변경할 수 없습니다. 기존 OpenClaw 설정도 선택할 수 있습니다. 직접 모델 연결의 GitHub 조회·Fork·PR은 앱의 REST API를 사용하며, GitHub MCP는 기존 OpenClaw 연결에서 사용합니다.
 - GitHub 연결: **연결 설정 → GitHub**에 토큰만 입력하면 계정을 자동으로 확인합니다. 공개 저장소를 검색하거나 추천 중 무작위로 골라 **내 계정에 Fork**하고, **이 저장소에서 작업**으로 PM → Dev → PR 시연을 시작합니다. Fork 준비와 원본 연결을 확인한 뒤 내 Fork를 작업 대상으로 선택하며, 원본에는 쓰지 않습니다. 기존 저장소를 바로 사용할 때만 선택 입력란에 `owner/repository`를 넣습니다. 연결·검색만으로 변경하지 않고 Fork 버튼을 누를 때 실제 생성합니다. 기존 파일·환경 설정과 메모리 입력도 지원합니다.
+- GitHub 계정 목록·Fork 삭제: **내 저장소 목록**은 작업 대상과 별개로 계정 소유 저장소를 페이지별로 읽어 표시합니다. `ARC-AGI 삭제해줘`처럼 요청하면 내 계정의 Fork를 찾아 확인창을 엽니다. 저장소 전체 이름을 입력하고 삭제를 눌러야 실행됩니다. 원본과 다른 계정 저장소는 삭제하지 않습니다. 삭제에는 토큰의 **Administration: Read and write** 권한이 필요하며, Repository creation 권한은 삭제 권한을 대신하지 않습니다. [GitHub 삭제 권한 안내](https://docs.github.com/en/rest/repos/repos#delete-a-repository). 작업 저장소 이름은 키 없이 `.bac/github-target.json`에 보관해 재시작 시 같은 계정에서 복원합니다.
 - Telegram 설정: 화면에서 Bot token과 Chat ID를 입력하면 연결을 검증합니다. **메시지 → Telegram**에서 양방향 대화를 제공합니다. 선택한 Chat ID에만 보내고, 해당 채팅에서 온 메시지만 받습니다.
 - AgentMail: API key와 기존 Inbox ID를 연결해 받은 메일의 제목·미리보기를 조회하고, 검색·논문 결과를 이메일로 공유합니다.
 - 결과 공유: 보낼 내용과 목적지를 확인·수정한 뒤 사용자가 보내기를 누르면 전송합니다. 연결 또는 조회만으로 메시지를 발송하지 않습니다.
