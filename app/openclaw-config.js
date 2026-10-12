@@ -16,7 +16,9 @@ function routes(config,env){
   const entries=agentEntries(config),ids=new Set(entries.map(a=>a.id));
   const preferred=env.GATEWAY_AGENT||(['bac',config.agents?.defaults?.systemAgent?.agentId,entries.find(a=>a.default)?.id,...(entries.length===1?[entries[0].id]:[]),'main','bac-host'].find(id=>ids.has(id)))||(entries.length===0?'main':null);
   const agents={bac:preferred,git:env.GITHUB_AGENT||(ids.has('git')?'git':null),pm:env.PM_AGENT||(ids.has('pm')?'pm':preferred),dev:env.DEV_AGENT||(ids.has('dev')?'dev':preferred)};
-  return {agent:preferred,agents};
+  const rawModel=entries.find(a=>a.id===preferred)?.model||config.agents?.defaults?.model;
+  const model=typeof rawModel==='string'?rawModel:rawModel?.primary||'';
+  return {agent:preferred,agents,model};
 }
 // Inspect only the local listener's identity and working directory. Never dump its environment.
 async function listenerConfigs(port){

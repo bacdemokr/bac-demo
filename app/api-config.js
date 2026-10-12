@@ -8,6 +8,7 @@ const fields = {
   github: ['token', 'owner', 'repo'],
   telegram: ['botToken', 'chatId'],
   agentmail: ['apiKey', 'inboxId'],
+  models: ['active','local','nvidia'],
 };
 function loadAPIConfig({ root = path.resolve(__dirname, '..'), env = process.env } = {}) {
   const file = env.BAC_API_CONFIG ? path.resolve(root, env.BAC_API_CONFIG) : path.join(root, 'api.json');
@@ -23,13 +24,19 @@ function loadAPIConfig({ root = path.resolve(__dirname, '..'), env = process.env
   let data;
   try { data = JSON.parse(raw); } catch { throw new ConfigError('api.json의 JSON 형식을 확인해주세요.'); }
   if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).some(k => !Object.hasOwn(fields, k)))
-    throw new ConfigError('api.json에는 github, telegram, agentmail 설정만 넣어주세요.');
+    throw new ConfigError('api.json에는 github, telegram, agentmail, models 설정만 넣어주세요.');
   const config = {};
   for (const [provider, keys] of Object.entries(fields)) {
     if (data[provider] === undefined) continue;
     const value = data[provider];
     if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(k => !keys.includes(k)))
       throw new ConfigError(`api.json의 ${provider} 설정 항목을 확인해주세요.`);
+    if(provider==='models'){
+      const {validateProfile}=require('./model-connections');const m={active:value.active||'gateway'};
+      if(!['gateway','local','nvidia'].includes(m.active))throw new ConfigError('api.json의 models.active 값을 확인해주세요.');
+      for(const kind of ['local','nvidia'])if(value[kind]!==undefined){const profile=value[kind];if(!profile||typeof profile!=='object'||Array.isArray(profile)||Object.keys(profile).some(k=>!['baseUrl','apiKey','model'].includes(k)))throw new ConfigError('api.json의 모델 설정 항목을 확인해주세요.');try{m[kind]=validateProfile(kind,profile);}catch{throw new ConfigError('api.json의 모델 주소·키·ID를 확인해주세요.');}if(m[kind].model&&kind==='nvidia'&&!m[kind].apiKey)throw new ConfigError('api.json에 NVIDIA 모델 API 키가 필요합니다.');}
+      if(m.active!=='gateway'&&!m[m.active]?.model)throw new ConfigError('api.json에 선택한 모델의 ID가 필요합니다.');config.models=m;continue;
+    }
     config[provider] = {};
     for (const key of keys) {
       let v = value[key] ?? '';
@@ -55,6 +62,7 @@ function loadConnections({ root = path.resolve(__dirname, '..'), env = process.e
   const read = file => { try { return fs.readFileSync(file, 'utf8').trim(); } catch { return ''; } };
   const telegramToken = env.TG_BOT_TOKEN || read(path.join(root, 'app', '.tg_token'));
   return {
+    models:config.models||{active:'gateway'},
     github: { ...(g.token ? { token: g.token, source: 'config' } : loadGitHubCredential({ appDir: path.join(root, 'app'), env })), owner: g.token?g.owner||'':g.owner || env.GH_OWNER || '', repo: g.token?g.repo||'':g.repo || env.GH_REPO || '' },
     telegram: t.botToken ? { token: t.botToken, chatId: t.chatId, source: 'config' } : { token: telegramToken, chatId: env.TG_CHAT_ID || t.chatId || '', source: telegramToken ? (env.TG_BOT_TOKEN ? 'environment' : 'file') : 'none' },
     agentmail: m.apiKey ? { apiKey: m.apiKey, inboxId: m.inboxId, source: 'config' } : { apiKey: env.AGENTMAIL_API_KEY || '', inboxId: env.AGENTMAIL_INBOX_ID || m.inboxId || '', source: env.AGENTMAIL_API_KEY ? 'environment' : 'none' },

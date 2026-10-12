@@ -13,7 +13,7 @@ test('one JSON file selects all providers over legacy credentials and does not c
   const c = loadConnections({ root, env: { GH_OWNER: 'old-owner', GH_REPO: 'old-repo', GITHUB_TOKEN: 'old-env-secret', TG_BOT_TOKEN: 'old-env-bot', TG_CHAT_ID: '999', AGENTMAIL_API_KEY: 'old-env-mail', AGENTMAIL_INBOX_ID: 'old@agentmail.to' } });
   assert.equal(c.github.token, config.github.token); assert.equal(c.github.owner, 'json-owner'); assert.equal(c.github.repo, 'json-repo');
   assert.equal(c.telegram.token, config.telegram.botToken); assert.equal(c.telegram.chatId, '-12345'); assert.equal(c.agentmail.apiKey, config.agentmail.apiKey);
-  assert(Object.values(c).every(p => p.source === 'config')); assert.equal(fs.readFileSync(file, 'utf8'), raw);
+  assert([c.github,c.telegram,c.agentmail].every(p => p.source === 'config')); assert.equal(fs.readFileSync(file, 'utf8'), raw);
 });
 test('blank, omitted and missing JSON providers retain existing file and environment setup', t => {
   const root = temporary(t), env = { GH_OWNER: 'env-owner', GH_REPO: 'env-repo', GITHUB_TOKEN: 'env-secret', TG_BOT_TOKEN: 'env-bot', TG_CHAT_ID: '12345', AGENTMAIL_API_KEY: 'env-mail', AGENTMAIL_INBOX_ID: 'env@agentmail.to' };

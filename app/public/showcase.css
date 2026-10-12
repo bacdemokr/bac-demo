@@ -350,3 +350,8 @@ body{height:auto;overflow:visible}
 
 .browser-results.product-results{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));overflow:visible}
 .product-results .result-card{min-width:0;max-width:none;overflow-wrap:anywhere;font-size:12px}
+
+.model-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px}.model-card strong,.model-card p,.model-card small{grid-column:1;overflow-wrap:anywhere}.model-card p{font-size:13px}.model-card small{color:var(--muted);font-size:11px}.model-card button{grid-column:2;grid-row:1/4;align-self:center}
+@media(max-width:640px){.model-card{grid-template-columns:1fr}.model-card button{grid-column:1;grid-row:auto;justify-self:start}#runtime-status{max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+
+@media(max-width:650px){.settings-dialog .tab-bar{gap:4px}.settings-dialog [role=tab]{padding:9px 6px}}

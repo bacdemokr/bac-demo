@@ -10,8 +10,10 @@
   const connectionEditing={telegram:false,agentmail:false,github:false};
   const connectionFields={telegram:{prefix:'tg',form:'telegram-form',key:'tg-token',button:'Telegram 연결'},agentmail:{prefix:'mail',form:'mail-connect-form',key:'mail-key',button:'AgentMail 연결'},github:{prefix:'gh',form:'github-form',key:'gh-token',button:'GitHub 연결'}};
   const roles={sysmon:'시스템 상태 · 로컬 도구',github:'GitHub 작업 · OpenClaw MCP',multiagent:'PM / Dev 협업 · GitHub',arxiv:'논문 리서치 · arXiv RSS'};
-  const canRun=id=>!!(status.gateway?.reachable&&status.gateway?.configured&&(id!=='github'||status.gateway?.agents?.git!==false||status.github?.connected)&&(id!=='multiagent'||status.team?.configured&&!githubForking&&!status.github?.forking));
-  const githubRole=()=>status.gateway?.agents?.git===false?'저장소 조회 · GitHub API':roles.github;
+  const directModel=()=>!!status.ai&&status.ai.provider!=='gateway';
+  const modelReady=()=>directModel()?!!status.ai.configured:!!(status.gateway?.reachable&&status.gateway?.configured);
+  const canRun=id=>!!(modelReady()&&(id!=='github'||!directModel()&&status.gateway?.agents?.git!==false||status.github?.connected)&&(id!=='multiagent'||status.team?.configured&&!githubForking&&!status.github?.forking));
+  const githubRole=()=>directModel()||status.gateway?.agents?.git===false?'저장소 조회 · GitHub API':roles.github;
   const toast=text=>{$('toast').textContent=text;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,4500);};
   function activity(agent,text){
     const item=document.createElement('li'),time=document.createElement('time'),name=document.createElement('strong'),content=document.createElement('p');
@@ -27,7 +29,7 @@
     const a=demo()?.getActive();
     document.querySelectorAll('[data-agent]').forEach(b=>{const c=demo().getAgents().find(c=>c.id===b.dataset.agent);b.classList.toggle('active',c===a);b.classList.toggle('working',!!c?.busy);b.setAttribute('aria-pressed',String(c===a));});
     const banner=$('chat-connection');banner.replaceChildren();banner.hidden=!a||canRun(a.id);
-    if(a&&!canRun(a.id)){const text=document.createElement('span');text.textContent=a.id==='multiagent'&&status.gateway?.configured&&status.gateway?.reachable?'협업에 필요한 GitHub 연결을 확인해주세요.':a.id==='github'&&status.gateway?.agents?.git===false?'GitHub 도구가 설정된 AI 에이전트가 없습니다.':'AI 서비스의 자동 연결을 확인하고 있습니다.';banner.append(text);}
+    if(a&&!canRun(a.id)){const text=document.createElement('span');text.textContent=a.id==='multiagent'&&modelReady()?'협업에 필요한 GitHub 연결을 확인해주세요.':a.id==='github'&&(!status.github?.connected&&(directModel()||status.gateway?.agents?.git===false))?'GitHub 계정을 연결해주세요.':'연결 설정에서 사용할 AI 모델을 확인해주세요.';banner.append(text);}
     const hasResult=!!results.get(a?.name);$('share-telegram').disabled=!hasResult;$('share-mail').disabled=!hasResult;
     $('input').disabled=!!a?.busy||!a||!canRun(a.id);$('input').placeholder=a?.busy?'작업 진행 중...':'메시지 입력';
     document.querySelectorAll('#agent-actions button').forEach(b=>b.disabled=!!a?.busy||!!a?.paperLoading||!a||(b.hasAttribute('data-ai')&&!canRun(a.id)));
@@ -61,6 +63,26 @@
   function selectTab(tab){document.querySelectorAll('[data-tab]').forEach(b=>{const active=b.dataset.tab===tab;b.setAttribute('aria-selected',String(active));b.tabIndex=active?0:-1;$('panel-'+b.dataset.tab).hidden=!active;});}
   function openSettings(tab='telegram'){if(tab==='gateway')tab='tools';selectTab(tab);if(!$('settings-dialog').open)$('settings-dialog').showModal();refreshStatus();}
   $('settings-open').onclick=()=>{demo().closeChat({restoreFocus:false});openSettings();};bindTabs('data-tab',selectTab);
+  let modelBusy=false;
+  const modelNames={local:'로컬 모델',nvidia:'NVIDIA Inference API'};
+  function renderModels(){
+    const inventory=status.models;if(!inventory)return;
+    $('model-active').value=inventory.active;$('model-active').disabled=modelBusy;
+    for(const opt of $('model-active').options)opt.disabled=opt.value!=='gateway'&&!inventory.profiles[opt.value]?.connected;
+    const selected=inventory.profiles[inventory.active];showStatus('model-active-status',inventory.active==='gateway'?`현재 사용 · ${status.ai?.model||'기존 OpenClaw 설정'}`:`현재 사용 · ${modelNames[inventory.active]} · ${selected?.model||''}`,!!selected?.error);
+    $('model-profiles').replaceChildren();
+    for(const provider of ['local','nvidia']){const c=inventory.profiles[provider],card=document.createElement('article'),heading=document.createElement('strong'),state=document.createElement('p'),detail=document.createElement('small'),edit=document.createElement('button');card.className='connection-card model-card';card.dataset.state=c.connected?'connected':c.configured?'warning':'pending';heading.textContent=modelNames[provider];state.textContent=c.connected?'✓ 연결됨 · '+c.model:c.error||'연결 전';detail.textContent=c.configured?`${c.baseUrl} · ${c.source==='config'?'api.json':'런타임 설정'}`:'';edit.className='quiet-button';edit.type='button';edit.textContent=c.configured?'연결 정보 변경':'연결 설정';edit.disabled=modelBusy;edit.onclick=()=>editModel(provider);card.append(heading,state,detail,edit);$('model-profiles').append(card);}
+  }
+  function modelPayload(){return {provider:$('model-provider').value,baseUrl:$('model-provider').value==='nvidia'?$('model-nvidia-endpoint').value:$('model-endpoint').value.trim(),apiKey:$('model-key').value.trim(),model:$('model-id').value.trim()};}
+  function editModel(provider){const c=status.models?.profiles[provider]||{};$('model-provider').value=provider;$('model-endpoint').value=c.baseUrl||'http://127.0.0.1:8001/v1';$('model-nvidia-endpoint').value=provider==='nvidia'?c.baseUrl||'https://inference-api.nvidia.com/v1':'https://inference-api.nvidia.com/v1';$('model-id').value=c.model||'';$('model-key').value='';$('model-options').replaceChildren();$('model-form').hidden=false;syncModelEditor();showStatus('model-form-status','');}
+  function syncModelEditor(){const nvidia=$('model-provider').value==='nvidia';$('model-endpoint-label').hidden=$('model-endpoint').hidden=nvidia;$('model-endpoint').required=!nvidia;$('model-nvidia-label').hidden=$('model-nvidia-endpoint').hidden=!nvidia;$('model-key-label').textContent=nvidia?'NVIDIA API 키':'API 키 (필요한 서버만)';}
+  $('model-provider').onchange=()=>editModel($('model-provider').value);
+  $('model-nvidia-endpoint').onchange=()=>{$('model-key').value='';$('model-id').value='';$('model-options').replaceChildren();};
+  $('model-cancel').onclick=()=>{$('model-key').value='';$('model-form').hidden=true;};
+  function lockModels(value){modelBusy=value;for(const element of $('model-form').elements)element.disabled=value;renderModels();}
+  $('model-load').onclick=async()=>{if(modelBusy)return;const values=modelPayload();lockModels(true);showStatus('model-form-status','모델 목록 확인 중...');try{const data=await api('/api/integrations/models/list',values);$('model-options').replaceChildren();for(const m of data.models){const option=document.createElement('option');option.value=m.id;$('model-options').append(option);}showStatus('model-form-status',`${data.models.length}개 모델 · 모델 ID 입력란에서 선택하세요.`);if(!$('model-id').value&&data.models.length===1)$('model-id').value=data.models[0].id;}catch(e){showStatus('model-form-status',e.message,true);}finally{lockModels(false);$('model-id').focus();}};
+  $('model-form').onsubmit=async e=>{e.preventDefault();if(modelBusy)return;const values=modelPayload();lockModels(true);++connectionRevision;showStatus('model-form-status','모델 응답 확인 중...');try{status.models=await api('/api/integrations/models',values);$('model-key').value='';$('model-form').hidden=true;await refreshStatus();toast('모델 연결을 적용했습니다.');}catch(error){showStatus('model-form-status',error.message,true);}finally{lockModels(false);}};
+  $('model-active').onchange=async()=>{const active=$('model-active').value;if(modelBusy)return;lockModels(true);++connectionRevision;try{status.models=await api('/api/integrations/models',{active});await refreshStatus();}catch(error){showStatus('model-active-status',error.message,true);}finally{lockModels(false);}};
   function showStatus(id,text,error=false){$(id).textContent=text;$(id).classList.toggle('error',error);}
   function renderConnectionCards(){
     for(const [type,fields]of Object.entries(connectionFields)){
@@ -100,10 +122,10 @@
     $('gh-work').hidden=!gh.canWrite||githubForking||!!gh.forking;
     $('tg-disconnect').disabled=!!$('telegram-form').dataset.pending||!tg.configured;$('mail-disconnect').disabled=!!$('mail-connect-form').dataset.pending||!mail.configured;
     $('gh-disconnect').disabled=!!$('github-form').dataset.pending||!gh.configured;
-    renderConnectionCards();
-    const runtime=canRun('web-summary');$('runtime-status').classList.toggle('connected',runtime);$('runtime-status').lastChild.textContent=runtime?' AI 연결됨':' AI 서비스 확인 필요';
+    renderConnectionCards();renderModels();
+    const runtime=canRun('web-summary');$('runtime-status').classList.toggle('connected',runtime);$('runtime-status').lastChild.textContent=runtime?` ${directModel()?(status.ai.provider==='local'?'로컬 · ':'NVIDIA · ')+status.ai.model:'AI 연결됨'}`:' AI 서비스 확인 필요';
     $('tool-status-list').replaceChildren();
-    const rows=[['AI 실행 서비스',runtime?'자동 연결됨':gw.error||'실행 상태 확인 필요'],['브라우저 · CDP',status.browser?.connected?'연결됨':'브라우저 실행 필요'],['GitHub API',gh.connected?gh.repo?`${gh.owner}/${gh.repo}`:'@'+gh.login:gh.error||'연결 전'],['GitHub MCP',gw.agents?.git===false?'설정된 에이전트 없음':'OpenClaw의 git 에이전트에서 설정'],['PM / Dev 협업',status.team?.configured?`설정됨 · ${status.team.repository}`:gh.connected&&!gh.repo?'공개 저장소를 Fork한 뒤 작업 가능':'OpenClaw 및 GitHub 토큰 필요'],['Telegram',tg.connected?'연결됨':'연결 전'],['AgentMail',mail.connected?'연결됨':'연결 전']];
+    const rows=[['AI 모델',runtime?directModel()?status.ai.model:'OpenClaw 설정 사용':directModel()?status.models?.profiles[status.ai.provider]?.error||'모델 연결 확인 필요':gw.error||'모델 연결 확인 필요'],['브라우저 · CDP',status.browser?.connected?'연결됨':'브라우저 실행 필요'],['GitHub API',gh.connected?gh.repo?`${gh.owner}/${gh.repo}`:'@'+gh.login:gh.error||'연결 전'],['GitHub MCP',directModel()?'기존 OpenClaw 연결에서 사용':gw.agents?.git===false?'설정된 에이전트 없음':'OpenClaw의 git 에이전트에서 설정'],['PM / Dev 협업',status.team?.configured?`설정됨 · ${status.team.repository}`:gh.connected&&!gh.repo?'공개 저장소를 Fork한 뒤 작업 가능':'AI 모델 및 GitHub 저장소 연결 필요'],['Telegram',tg.connected?'연결됨':'연결 전'],['AgentMail',mail.connected?'연결됨':'연결 전']];
     rows.forEach(([name,state])=>{const row=document.createElement('div'),label=document.createElement('span'),value=document.createElement('small');row.className='tool-row';label.textContent=name;value.textContent=state;row.append(label,value);$('tool-status-list').append(row);});
     showStatus('telegram-status',tg.connected?`@${tg.bot} · Chat ${tg.chatId}${tg.error?' · 수신 연결 확인 필요':''}`:tg.error||'Telegram 연결 후 메시지를 주고받을 수 있습니다.',!!tg.error);
     $('telegram-send').disabled=telegramSending||!tg.connected;if(demo()?.getActive()?.id==='github')$('chat-role').textContent=githubRole();syncShare();syncChat();demo()?.sync();updateBrowserButtons();
@@ -112,14 +134,14 @@
   async function refreshStatus(){
     if(statusLoading)return;statusLoading=true;const revision=connectionRevision;
     try{const fetched=await api('/api/showcase/status');if(revision===connectionRevision){status=fetched;renderConnections();}}
-    catch{$('runtime-status').classList.remove('connected');$('runtime-status').lastChild.textContent=' 서버 연결 확인';status.gateway={};syncChat();demo()?.sync();}
+    catch{$('runtime-status').classList.remove('connected');$('runtime-status').lastChild.textContent=' 서버 연결 확인';status.gateway={};status.ai={};syncChat();demo()?.sync();}
     finally{statusLoading=false;}
   }
   async function configure(formId,statusId,path,body,keyId){
     const form=$(formId);if(form.dataset.pending)return;form.dataset.pending='true';++connectionRevision;
     const controls=[...form.querySelectorAll('input,button')];controls.forEach(b=>b.disabled=true);showStatus(statusId,'연결 확인 중...');
     renderConnectionCards();
-    try{const result=await api(path,body);const type=path.split('/').pop();status[type]=result;connectionEditing[type]=false;$(keyId).value='';if(type==='telegram'){telegramCursor=0;$('telegram-messages').replaceChildren();}else if(type==='agentmail')$('inbox-messages').replaceChildren();else if(type==='github')status.team={...status.team,configured:!!status.gateway?.configured&&result.connected&&result.canWrite,repository:result.repo?result.owner+'/'+result.repo:''};activity(type,body.disconnect?'연결 해제':'연결 완료');}
+    try{const result=await api(path,body);const type=path.split('/').pop();status[type]=result;connectionEditing[type]=false;$(keyId).value='';if(type==='telegram'){telegramCursor=0;$('telegram-messages').replaceChildren();}else if(type==='agentmail')$('inbox-messages').replaceChildren();else if(type==='github')status.team={...status.team,configured:modelReady()&&result.connected&&result.canWrite,repository:result.repo?result.owner+'/'+result.repo:''};activity(type,body.disconnect?'연결 해제':'연결 완료');}
     catch(e){showStatus(statusId,e.message,true);return;}
     finally{delete form.dataset.pending;controls.forEach(b=>b.disabled=false);renderConnectionCards();}
     renderConnections();if($('inbox-dialog').open){if($('message-telegram').hidden)loadInbox();else loadTelegram();}
@@ -145,14 +167,14 @@
       const deadline=Date.now()+90000;let job;
       do{job=await api('/api/integrations/github/forks/'+started.id);showStatus('gh-fork-status',job.step);if(job.url){$('gh-fork-link').href=job.url;$('gh-fork-link').hidden=false;}if(job.status!=='running')break;await new Promise(resolve=>setTimeout(resolve,500));}while(Date.now()<deadline);
       if(job.status!=='done')throw new Error(job.error||'Fork 준비를 기다리고 있습니다. GitHub에서 상태를 확인해주세요.');
-      ++connectionRevision;status.github=await api('/api/integrations/github');status.team={...status.team,configured:!!status.gateway?.configured&&status.github.canWrite,repository:job.repository};$('gh-repository').value=job.repository;activity('GitHub','Fork 완료 · '+job.repository);showStatus('gh-fork-status','Fork 완료 · '+job.repository);
+      ++connectionRevision;status.github=await api('/api/integrations/github');status.team={...status.team,configured:modelReady()&&status.github.canWrite,repository:job.repository};$('gh-repository').value=job.repository;activity('GitHub','Fork 완료 · '+job.repository);showStatus('gh-fork-status','Fork 완료 · '+job.repository);
     }catch(error){showStatus('gh-fork-status',error.message,true);}finally{githubForking=false;renderConnections();}
   };
   $('gh-work').onclick=()=>{$('settings-dialog').close();demo().openAgent('multiagent');$('input').focus();};
   $('tg-disconnect').onclick=()=>configure('telegram-form','tg-status','/api/integrations/telegram',{disconnect:true},'tg-token');
   $('mail-disconnect').onclick=()=>configure('mail-connect-form','mail-status','/api/integrations/agentmail',{disconnect:true},'mail-key');
   $('gh-disconnect').onclick=()=>configure('github-form','gh-status','/api/integrations/github',{disconnect:true},'gh-token');
-  $('settings-dialog').addEventListener('close',()=>{for(const [type,fields]of Object.entries(connectionFields)){connectionEditing[type]=false;$(fields.key).value='';}renderConnectionCards();});
+  $('settings-dialog').addEventListener('close',()=>{for(const [type,fields]of Object.entries(connectionFields)){connectionEditing[type]=false;$(fields.key).value='';}renderConnectionCards();$('model-key').value='';$('model-form').hidden=true;});
   const examples={amazon:'USB C hub',news:'최근 일주일 NVIDIA와 로컬 AI 관련 주요 발표를 정리해줘. 발표 날짜와 출처도 알려줘.',research:'로컬에서 AI 에이전트를 실행하는 실제 사례를 조사해줘. 사용한 도구와 활용 방식, 출처를 함께 정리해줘.'};
   function syncBrowserMode(){
     const mode=$('browser-mode').value,food=mode==='restaurants',amazon=mode==='amazon';
@@ -260,7 +282,7 @@
   };
   $('browser-summary-run').onclick=async()=>{
     if(!browserJob?.results.length||summaryRunning)return;$('browser-summary').hidden=false;
-    if(!canRun('web-summary')){$('browser-summary-text').textContent='AI 실행 서비스의 자동 연결을 확인해주세요. 읽은 원문은 아래에서 확인할 수 있습니다.';return;}
+    if(!canRun('web-summary')){$('browser-summary-text').textContent='모델 연결을 확인해주세요. 읽은 원문은 아래에서 확인할 수 있습니다.';return;}
     const job=browserJob,revision=summaryRevision;summaryRunning=true;updateBrowserButtons();$('browser-summary-text').textContent='읽은 근거를 정리하고 있습니다...';
     try{const data=await window.DemoAPI.task({agent:'web-summary',searchJobId:job.id,messages:[{role:'user',content:job.query}]});if(data.error)throw new Error(data.error);if(revision===summaryRevision){job.summary={answer:data.reply,limitations:data.limitations||[]};browserSummary=data.reply;renderSummary(job);activity('브라우저','근거를 포함한 결과 정리 완료');}}
     catch(e){if(revision===summaryRevision)$('browser-summary-text').textContent=e.message;}

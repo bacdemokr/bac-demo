@@ -36,7 +36,7 @@
 </div>
 <dialog id="settings-dialog" class="dialog settings-dialog" aria-labelledby="settings-title">
   <div class="dialog-head"><h2 id="settings-title">연결 설정</h2><button class="icon-button" data-close="settings-dialog" aria-label="설정 닫기">×</button></div>
-  <div class="tab-bar" role="tablist" aria-label="연결 종류"><button role="tab" id="tab-telegram" aria-controls="panel-telegram" aria-selected="true" data-tab="telegram">Telegram</button><button role="tab" id="tab-agentmail" aria-controls="panel-agentmail" aria-selected="false" tabindex="-1" data-tab="agentmail">AgentMail</button><button role="tab" id="tab-github" aria-controls="panel-github" aria-selected="false" tabindex="-1" data-tab="github">GitHub</button><button role="tab" id="tab-tools" aria-controls="panel-tools" aria-selected="false" tabindex="-1" data-tab="tools">도구 상태</button></div>
+  <div class="tab-bar" role="tablist" aria-label="연결 종류"><button role="tab" id="tab-telegram" aria-controls="panel-telegram" aria-selected="true" data-tab="telegram">Telegram</button><button role="tab" id="tab-agentmail" aria-controls="panel-agentmail" aria-selected="false" tabindex="-1" data-tab="agentmail">AgentMail</button><button role="tab" id="tab-github" aria-controls="panel-github" aria-selected="false" tabindex="-1" data-tab="github">GitHub</button><button role="tab" id="tab-models" aria-controls="panel-models" aria-selected="false" tabindex="-1" data-tab="models">모델</button><button role="tab" id="tab-tools" aria-controls="panel-tools" aria-selected="false" tabindex="-1" data-tab="tools">도구 상태</button></div>
   <section id="panel-telegram" role="tabpanel" aria-labelledby="tab-telegram">
     <p id="tg-setup-note" class="dialog-copy" hidden>OpenClaw 채널과 별도 봇을 사용하세요.</p>
     <div id="tg-connection-card" class="connection-card" hidden>
@@ -63,6 +63,20 @@
     <label for="gh-source">Fork할 저장소</label><select id="gh-source" disabled><option value="">검색하거나 추천을 눌러주세요</option></select><p id="gh-source-info" class="field-note"></p>
     <div class="dialog-actions"><button type="button" id="gh-fork-action" class="primary-button" disabled>내 계정에 Fork</button><button type="button" id="gh-work" class="quiet-button" hidden>이 저장소에서 작업</button></div><p id="gh-fork-status" class="form-status" role="status"></p><a id="gh-fork-link" target="_blank" rel="noopener noreferrer" hidden>GitHub에서 Fork 보기 ↗</a>
     <p class="field-note">Fork에는 별도의 저장소 생성 권한이 필요합니다. PR 작업에는 Contents·Pull requests 쓰기 권한이 필요합니다. 원본 저장소는 수정하지 않습니다.</p><p class="field-note">파일 설정도 앱 시작 시 자동으로 읽습니다. GitHub MCP는 OpenClaw의 연결 설정을 사용합니다.</p>
+  </section>
+  <section id="panel-models" role="tabpanel" aria-labelledby="tab-models" hidden>
+    <label for="model-active">사용할 모델 연결</label><select id="model-active"><option value="gateway">기존 OpenClaw 설정</option><option value="local">로컬 모델</option><option value="nvidia">NVIDIA Inference API</option></select><p id="model-active-status" class="form-status" role="status"></p>
+    <div id="model-profiles"></div>
+    <form id="model-form" hidden>
+      <label for="model-provider">연결 종류</label><select id="model-provider"><option value="local">로컬 모델</option><option value="nvidia">NVIDIA Inference API</option></select>
+      <label for="model-endpoint" id="model-endpoint-label">모델 서버 주소</label><input id="model-endpoint" type="url" placeholder="http://127.0.0.1:8001/v1" required>
+      <label for="model-nvidia-endpoint" id="model-nvidia-label" hidden>NVIDIA 서비스</label><select id="model-nvidia-endpoint" hidden><option value="https://inference-api.nvidia.com/v1">NVIDIA Inference Hub · 사내</option><option value="https://integrate.api.nvidia.com/v1">NVIDIA API Catalog · 공개</option></select>
+      <label for="model-key" id="model-key-label">API 키 (필요한 서버만)</label><input id="model-key" type="password" autocomplete="off" spellcheck="false" maxlength="512" placeholder="등록된 키는 비워두면 유지됩니다.">
+      <div class="dialog-actions"><button id="model-load" type="button" class="quiet-button">모델 목록 불러오기</button></div>
+      <label for="model-id">모델 ID</label><input id="model-id" list="model-options" maxlength="256" autocomplete="off" required placeholder="서버에서 제공하는 모델 ID"><datalist id="model-options"></datalist>
+      <p id="model-form-status" class="form-status" role="status"></p><div class="dialog-actions"><button id="model-cancel" type="button" class="quiet-button">취소</button><button id="model-connect" type="submit" class="primary-button">연결 확인 후 사용</button></div>
+    </form>
+    <p class="field-note">로컬 모델은 실행 중인 OpenAI 호환 서버 주소를 입력하세요. 연결 시 짧은 응답으로 확인합니다. api.json 설정은 시작할 때 읽으며, 화면에서 입력한 키는 서버 메모리에만 보관합니다.</p>
   </section>
   <section id="panel-tools" role="tabpanel" aria-labelledby="tab-tools" hidden><div id="tool-status-list"></div><a href="https://github.com/bacdemokr/bac-demo/blob/main/INSTALL.md" target="_blank" rel="noopener noreferrer" class="docs-link">설정 안내 ↗</a></section>
   <p class="privacy-note">화면에서 입력한 키는 재시작 시 초기화됩니다. api.json 설정은 시작할 때 자동으로 읽습니다.</p>
@@ -93,6 +107,6 @@
 <div id="toast" role="status" hidden></div>
 <script src="runtime.js?v=research"></script>
 <script src="game.js?v=research"></script>
-<script src="showcase.js?v=amazon-search"></script>
+<script src="showcase.js?v=model-connections"></script>
 </body>
 </html>

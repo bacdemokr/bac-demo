@@ -28,7 +28,7 @@ async function readJSON(req) {
   } catch { throw new Problem("올바른 JSON 내용을 보내주세요."); }
 }
 
-function createShowcase({ telegramToken = "", telegramConfig = {token:telegramToken,chatId:process.env.TG_CHAT_ID,source:'environment'}, mailConfig = {apiKey:process.env.AGENTMAIL_API_KEY,inboxId:process.env.AGENTMAIL_INBOX_ID,source:'environment'}, gateway = "", gatewayToken = "", gatewayInfo = () => ({}), fetcher = fetch, github = new GitHubConnection({fetcher}), browser, browserAsk, capabilities = () => ({}) } = {}) {
+function createShowcase({ telegramToken = "", telegramConfig = {token:telegramToken,chatId:process.env.TG_CHAT_ID,source:'environment'}, mailConfig = {apiKey:process.env.AGENTMAIL_API_KEY,inboxId:process.env.AGENTMAIL_INBOX_ID,source:'environment'}, gateway = "", gatewayToken = "", gatewayInfo = () => ({}), fetcher = fetch, github = new GitHubConnection({fetcher}), browser, browserAsk, models, capabilities = () => ({}) } = {}) {
   const telegram = new TelegramBridge({ ...telegramConfig, fetcher });
   const mail = new AgentMailBridge({ ...mailConfig, fetcher });
   browser ||= new BrowserJobs({ endpoint: process.env.BROWSER_CDP_URL || "http://127.0.0.1:9222", ask:browserAsk });
@@ -40,12 +40,15 @@ function createShowcase({ telegramToken = "", telegramConfig = {token:telegramTo
     const url = new URL(req.url, "http://localhost"), p = url.pathname;
     if (!p.startsWith("/api/showcase/") && !p.startsWith("/api/integrations/") && !p.startsWith("/api/browser/")) return false;
     try {
-      if (p === "/api/showcase/status" && req.method === "GET") {
+      if(models&&p==='/api/integrations/models'&&req.method==='GET')respond(res,200,models.public());
+      else if(models&&p==='/api/integrations/models'&&req.method==='POST')respond(res,200,await models.configure(await readJSON(req)));
+      else if(models&&p==='/api/integrations/models/list'&&req.method==='POST'){const data=await readJSON(req);respond(res,200,await models.models(data.provider,data));}
+      else if (p === "/api/showcase/status" && req.method === "GET") {
         const [gatewayReachable, browserConnected] = await Promise.all([
           probe(resolve(gateway) + "/health", resolve(gatewayToken) ? { Authorization: `Bearer ${resolve(gatewayToken)}` } : {}),
           probe(browser.endpoint + "/json/version"),
         ]);
-        respond(res, 200, { gateway: { ...gatewayInfo(), reachable: gatewayReachable, configured: !!resolve(gatewayToken), url:resolve(gateway) }, browser: { connected: browserConnected }, github:github.public(), telegram: telegram.public(), agentmail: mail.public(), ...capabilities() });
+        respond(res, 200, { gateway: { ...gatewayInfo(), reachable: gatewayReachable, configured: !!resolve(gatewayToken), url:resolve(gateway) }, browser: { connected: browserConnected }, ...(models?{models:models.public()}:{}), github:github.public(), telegram: telegram.public(), agentmail: mail.public(), ...capabilities() });
       } else if (p === '/api/integrations/github/repositories' && req.method === 'GET') respond(res,200,await github.repositories(url.searchParams.get('q')||''));
       else if (p === '/api/integrations/github/forks' && req.method === 'POST') respond(res,202,github.createFork(await readJSON(req)));
       else if (/^\/api\/integrations\/github\/forks\/[\w-]+$/.test(p) && req.method === 'GET') respond(res,200,github.forkStatus(p.split('/').pop()));
