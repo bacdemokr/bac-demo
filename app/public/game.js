@@ -394,7 +394,7 @@
   canvas.addEventListener('click',e=>{const r=canvas.getBoundingClientRect(),c=hitTest(e.clientX-r.left,e.clientY-r.top);if(c)openChat(c);else closeChat({restoreFocus:false});});
   document.getElementById('chat-close').onclick=()=>closeChat();
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!document.querySelector('dialog[open]'))closeChat();});
-  document.addEventListener('click',e=>{if(!activeChar||document.querySelector('dialog[open]')||e.target.closest('#chat,dialog,#game,[data-agent],[data-mission="team"],[data-mission="research"],#motion-toggle'))return;closeChat({restoreFocus:false});});
+  document.addEventListener('click',e=>{if(!activeChar||document.querySelector('dialog[open]')||e.target.closest('#chat,dialog,#game,[data-agent],[data-mission="team"],[data-mission="research"],#motion-toggle,#studio-resources'))return;closeChat({restoreFocus:false});});
   inputEl.addEventListener('input',()=>{if(activeChar)session(activeChar).draft=inputEl.value;});
   async function runTurn(c,text){
     if(c.busy)return;if(!(window.BacShowcase?.canRun(c.id)??true)){window.BacShowcase?.settings('tools');return;}

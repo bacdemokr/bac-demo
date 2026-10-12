@@ -57,6 +57,11 @@
   });
   $('motion-toggle').setAttribute('aria-pressed',String(demo().isPaused()));
   $('motion-toggle').onclick=()=>{const paused=!demo().isPaused();demo().motion(paused);$('motion-toggle').setAttribute('aria-pressed',String(paused));$('motion-toggle').setAttribute('aria-label',paused?'애니메이션 재생':'애니메이션 일시 정지');$('motion-toggle').textContent=paused?'▷':'Ⅱ';};
+  const resources=$('studio-resources');
+  document.addEventListener('pointerdown',e=>{if(!resources.contains(e.target))resources.open=false;});
+  resources.addEventListener('focusout',e=>{if(!resources.contains(e.relatedTarget))resources.open=false;});
+  resources.addEventListener('click',e=>{if(e.target.closest('a'))resources.open=false;});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&resources.open){e.preventDefault();e.stopPropagation();resources.open=false;resources.querySelector('summary').focus();}},true);
   function bindTabs(attribute,select){
     const tabs=[...document.querySelectorAll(`[${attribute}]`)];
     tabs.forEach((b,i)=>{b.onclick=()=>select(b.getAttribute(attribute));b.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const next=e.key==='Home'?0:e.key==='End'?tabs.length-1:(i+(e.key==='ArrowLeft'?-1:1)+tabs.length)%tabs.length;select(tabs[next].getAttribute(attribute));tabs[next].focus();};});
