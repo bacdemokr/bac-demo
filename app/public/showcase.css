@@ -345,3 +345,8 @@ body{height:auto;overflow:visible}
 @media(max-width:650px){.settings-dialog .tab-bar{overflow:auto}.settings-dialog [role=tab]{flex:0 0 auto;font-size:11px;padding:9px 10px}}
 @media(max-width:900px){.browser-layout{grid-template-columns:minmax(0,1fr)}.browser-trace,.research-complete .browser-trace{min-width:0;max-height:none;overflow:visible}#browser-steps{max-height:150px}}
 @media(max-width:650px){.research-complete .browser-viewport{height:150px}.research-complete #browser-steps{margin-top:0}}
+
+.product-metrics{display:block;margin-top:8px;color:var(--lime,#baf477);font-size:13px;line-height:1.6}
+
+.browser-results.product-results{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));overflow:visible}
+.product-results .result-card{min-width:0;max-width:none;overflow-wrap:anywhere;font-size:12px}

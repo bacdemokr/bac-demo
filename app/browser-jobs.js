@@ -17,6 +17,8 @@ function newsUrl(provider,query,period){
   return url.href;
 }
 
+const {AMAZON,searchAmazon}=require('./amazon-search');
+
 const SOURCES = {
   naver: { name: "Naver", newsUrl:(q,period)=>newsUrl('naver',q,period), url: q => `https://search.naver.com/search.naver?query=${encodeURIComponent(q)}` },
   daum: { name: "Daum", newsUrl:(q,period)=>newsUrl('daum',q,period), url: q => `https://search.daum.net/search?w=tot&q=${encodeURIComponent(q)}` },
@@ -51,11 +53,12 @@ class BrowserJobs {
     this.endpoint = endpoint; this.chromium = chromium; this.sources = sources; this.mapSources = mapSources; this.ask = ask; this.jobs = new Map(); this.busy = false;
   }
   create({ query, region, menu, provider = "naver", mode = "search" }) {
-    if (!["search","research","news","compare","restaurants"].includes(mode)) throw new Problem("조사 방식을 확인해주세요.");
+    if (!["search","research","news","compare","restaurants","amazon"].includes(mode)) throw new Problem("조사 방식을 확인해주세요.");
     const food=mode==='restaurants'?restaurantRequest(region,menu):null;
     if(food)query=food.query;
-    const sources=food?this.mapSources:this.sources;
-    const maxLength=mode==='search'?240:600;
+    if(mode==='amazon')provider='amazon';
+    const sources=mode==='amazon'?{amazon:AMAZON}:food?this.mapSources:this.sources;
+    const maxLength=['search','amazon'].includes(mode)?240:600;
     if (typeof query !== "string" || !query.trim() || query.length > maxLength) throw new Problem(`조사 요청은 1-${maxLength}자로 입력해주세요.`);
     if (provider !== "auto" && !Object.hasOwn(sources, provider)) throw new Problem("지원하는 검색 소스를 선택해주세요.");
     if (this.busy) throw new Problem("브라우저가 탐색 중입니다. 현재 작업이 끝난 뒤 실행해주세요.", 409);
@@ -67,7 +70,7 @@ class BrowserJobs {
     const job = { id: randomUUID(), query: query.trim(), provider, mode, source: provider === "auto" && mode !== "search" ? "여러 검색원" : source.name, url: source.url(query.trim()), status: "running", events: [], results: [], documents: [], searches: [], plan:null, summary:null, frame: null, revision: 0, at: Date.now() };
     if(food)Object.assign(job,{region:food.region,menu:food.menu,restaurants:[]});
     this.jobs.set(job.id, job); this.busy = true;
-    (food?searchRestaurants({job,endpoint:this.endpoint,chromium:this.chromium,sources,event:(stage,text)=>this.event(job,stage,text)}):mode === "search" ? this.run(job) : this.research(job)).finally(() => { this.busy = false; });
+    (mode==='amazon'?searchAmazon({job,endpoint:this.endpoint,chromium:this.chromium,event:(stage,text)=>this.event(job,stage,text)}):food?searchRestaurants({job,endpoint:this.endpoint,chromium:this.chromium,sources,event:(stage,text)=>this.event(job,stage,text)}):mode === "search" ? this.run(job) : this.research(job)).finally(() => { this.busy = false; });
     return this.public(job.id);
   }
   event(job, stage, text) { job.stage = stage; job.events.push({ stage, text, at: Date.now() }); }

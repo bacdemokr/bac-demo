@@ -153,21 +153,24 @@
   $('mail-disconnect').onclick=()=>configure('mail-connect-form','mail-status','/api/integrations/agentmail',{disconnect:true},'mail-key');
   $('gh-disconnect').onclick=()=>configure('github-form','gh-status','/api/integrations/github',{disconnect:true},'gh-token');
   $('settings-dialog').addEventListener('close',()=>{for(const [type,fields]of Object.entries(connectionFields)){connectionEditing[type]=false;$(fields.key).value='';}renderConnectionCards();});
-  const examples={news:'최근 일주일 NVIDIA와 로컬 AI 관련 주요 발표를 정리해줘. 발표 날짜와 출처도 알려줘.',compare:'DGX Spark와 Jetson을 비교해줘. 사용 목적, 실행할 수 있는 AI 작업, 선택할 때 고려할 점을 공식 자료로 확인해줘.',research:'로컬에서 AI 에이전트를 실행하는 실제 사례를 조사해줘. 사용한 도구와 활용 방식, 출처를 함께 정리해줘.'};
+  const examples={amazon:'USB C hub',news:'최근 일주일 NVIDIA와 로컬 AI 관련 주요 발표를 정리해줘. 발표 날짜와 출처도 알려줘.',research:'로컬에서 AI 에이전트를 실행하는 실제 사례를 조사해줘. 사용한 도구와 활용 방식, 출처를 함께 정리해줘.'};
   function syncBrowserMode(){
-    const mode=$('browser-mode').value,food=mode==='restaurants';
+    const mode=$('browser-mode').value,food=mode==='restaurants',amazon=mode==='amazon';
     $('restaurant-fields').hidden=!food;$('browser-question-fields').hidden=food;$('browser-examples').hidden=food;
-    $('browser-query').disabled=food||browserRunning;$('browser-query').required=!food;$('browser-query').maxLength=mode==='search'?240:600;
+    $('browser-query').disabled=food||browserRunning;$('browser-query').required=!food;$('browser-query').maxLength=amazon?240:600;
+    $('browser-query-label').textContent=amazon?'상품 검색어':'조사할 질문';$('browser-query').placeholder=amazon?'예: USB C hub, mechanical keyboard':'궁금한 내용과 원하는 결과를 적어주세요.';
+    $('browser-source').hidden=amazon;$('browser-source').disabled=amazon||browserRunning;
     for(const id of ['restaurant-region','restaurant-menu']){$(id).disabled=!food||browserRunning;$(id).required=food;}
     const labels=food?{auto:'네이버 + 카카오',naver:'네이버지도',daum:'카카오맵'}:{auto:mode==='search'?'자동 선택':'Naver + Daum',naver:'Naver',daum:'Daum'};
     for(const option of $('browser-source').options)option.textContent=labels[option.value];
-    $('browser-run').textContent=food?'맛집 검색':mode==='search'?'검색 시작':'조사 시작';
-    $('browser-summary-run').hidden=(browserJob?.mode||mode)==='restaurants';
+    $('browser-run').textContent=food?'맛집 검색':amazon?'상품 검색':'조사 시작';
+    $('browser-summary-run').hidden=['restaurants','amazon'].includes(browserJob?.mode||mode);
   }
-  document.querySelectorAll('[data-research-example]').forEach(b=>b.onclick=()=>{if(browserRunning)return;$('browser-mode').value=b.dataset.researchExample;syncBrowserMode();$('browser-query').value=examples[b.dataset.researchExample];$('browser-source').value='auto';$('browser-query').focus();});
-  $('browser-mode').onchange=syncBrowserMode;
+  document.querySelectorAll('[data-research-example]').forEach(b=>b.onclick=()=>{if(browserRunning)return;$('browser-mode').value=b.dataset.researchExample;syncBrowserMode();queryMode=b.dataset.researchExample;$('browser-query').value=examples[b.dataset.researchExample];$('browser-source').value='auto';$('browser-query').focus();});
+  const browserDrafts={research:$('browser-query').value,news:examples.news,amazon:examples.amazon};let queryMode='research';
+  $('browser-mode').onchange=()=>{browserDrafts[queryMode]=$('browser-query').value;const next=$('browser-mode').value;if(next!=='restaurants'){queryMode=next;$('browser-query').value=browserDrafts[next]||'';}syncBrowserMode();};
   function openBrowser(){if(!$('browser-dialog').open)$('browser-dialog').showModal();}
-  async function browse(query){if(browserRunning){openBrowser();return;}openBrowser();if($('browser-mode').value==='restaurants'){$('browser-mode').value='research';syncBrowserMode();}$('browser-query').value=query;$('browser-form').requestSubmit();}
+  async function browse(query){if(browserRunning){openBrowser();return;}openBrowser();if(['restaurants','amazon'].includes($('browser-mode').value)){$('browser-mode').value='research';syncBrowserMode();}queryMode='research';$('browser-query').value=query;$('browser-form').requestSubmit();}
   let renderedJob='',renderedEvents=0,documentSignature='';
   function renderSteps(job){
     $('browser-dialog').classList.toggle('research-complete',job.mode!=='search'&&job.status==='done');
@@ -199,6 +202,7 @@
   }
   function renderSummary(job){
     if(job.mode==='restaurants'){renderRestaurants(job);return;}
+    if(job.mode==='amazon'){$('browser-summary').hidden=true;return;}
     if(job.mode==='search'&&!job.summary&&!job.summaryError)return;
     $('browser-summary').hidden=false;$('browser-limitations').replaceChildren();
     if(job.summary?.answer){browserSummary=job.summary.answer;renderAnswer(job.summary.answer,job);for(const text of job.summary.limitations||[]){const li=document.createElement('li');li.textContent=text;$('browser-limitations').append(li);}}
@@ -233,20 +237,22 @@
   }
   document.querySelectorAll('[data-restaurant-sort]').forEach(b=>b.onclick=()=>{restaurantSort=b.dataset.restaurantSort;if(browserJob?.mode==='restaurants'&&browserJob.status==='done')renderRestaurants(browserJob);});
   function browserText(job){
+    if(job.mode==='amazon')return `Amazon 상품 검색: ${job.query}\n확인: ${job.checkedAt}\n화면의 통화 기준 · 배송비·세금 제외\n\n`+job.results.map((r,i)=>`${i+1}. ${r.title}\n${r.price||'가격 미표시'} · ${r.rating===null?'평점 없음':r.rating+'/5'} · 리뷰 ${r.reviewCount||'미표시'}\n${r.url}`).join('\n\n');
     if(job.mode==='restaurants')return `맛집 검색: ${job.region} / ${job.menu}\n${restaurantSort==='daum'?'카카오':'네이버'} 평점순 · 확인한 후보 중 상위 20곳\n확인: ${job.checkedAt}\n\n`+sortedRestaurants(job).map((row,i)=>`${i+1}. ${row.name}\n${row.address}\n`+['naver','daum'].map(key=>(key==='naver'?'네이버지도':'카카오맵')+': '+restaurantMetric(row[key],key).filter(Boolean).join(' · ')+(row[key]?'\n'+row[key].url:'')).join('\n')).join('\n\n');
     const docs=(job.documents||[]).filter(d=>d.status==='read');return `조사 요청: ${job.query}\n\n`+(browserSummary?browserSummary+'\n\n':'')+(docs.length?'읽은 근거:\n'+docs.map(d=>`[${d.id}] ${d.title}\n${d.url}${d.published?'\n게시일: '+d.published:''}${!browserSummary&&d.excerpt?'\n원문 발췌: '+d.excerpt:''}`).join('\n\n'):job.mode==='search'?job.results.map((r,i)=>`${i+1}. ${r.title}\n${r.url}`).join('\n\n'):job.summaryError||'질문에 맞는 근거를 확인하지 못했습니다.');
   }
-  function updateBrowserButtons(){const usable=browserJob?.status==='done'&&browserJob.results.length>0,read=browserJob?.mode==='search'||browserJob?.documents?.some(d=>d.status==='read');$('browser-summary-run').hidden=(browserJob?.mode||$('browser-mode').value)==='restaurants';$('browser-summary-run').disabled=!usable||!read||summaryRunning;$('browser-summary-run').textContent=browserJob?.summary?'결과 다시 정리':'AI로 정리';$('browser-share').disabled=!usable;}
+  function updateBrowserButtons(){const usable=browserJob?.status==='done'&&browserJob.results.length>0,read=browserJob?.mode==='search'||browserJob?.documents?.some(d=>d.status==='read');$('browser-summary-run').hidden=['restaurants','amazon'].includes(browserJob?.mode||$('browser-mode').value);$('browser-summary-run').disabled=!usable||!read||summaryRunning;$('browser-summary-run').textContent=browserJob?.summary?'결과 다시 정리':'AI로 정리';$('browser-share').disabled=!usable;}
   function renderResults(job){
+    $('browser-results').classList.toggle('product-results',job.mode==='amazon');
     if(job.mode==='restaurants'){$('browser-candidates').hidden=true;updateBrowserButtons();return;}
-    $('browser-results').replaceChildren();job.results.forEach(r=>{const href=validLink(r.url);if(!href)return;const link=document.createElement('a'),host=document.createElement('small');link.className='result-card';link.textContent=r.title;link.href=href;host.textContent=new URL(href).hostname+(r.searchSources?.length?' · '+r.searchSources.join(', '):'');link.append(host);link.target='_blank';link.rel='noopener noreferrer';$('browser-results').append(link);});$('browser-candidates').hidden=!job.results.length;$('browser-candidates').querySelector('summary').textContent=`검색 후보 (${job.results.length})`;$('browser-candidates').open=job.mode==='search';updateBrowserButtons();
+    $('browser-results').replaceChildren();job.results.forEach(r=>{const href=validLink(r.url);if(!href)return;const link=document.createElement('a'),host=document.createElement('small');link.className='result-card';link.textContent=r.title;link.href=href;host.textContent=new URL(href).hostname+(r.searchSources?.length?' · '+r.searchSources.join(', '):'');link.append(host);link.target='_blank';link.rel='noopener noreferrer';if(job.mode==='amazon'){const details=document.createElement('span');details.className='product-metrics';details.textContent=`${r.price||'가격 미표시'} · ${r.rating===null?'평점 없음':r.rating+'/5'} · 리뷰 ${r.reviewCount||'미표시'}`;link.append(details);}$('browser-results').append(link);});$('browser-candidates').hidden=!job.results.length;$('browser-candidates').querySelector('summary').textContent=`${job.mode==='amazon'?'상품':'검색 후보'} (${job.results.length})`;$('browser-candidates').open=['search','amazon'].includes(job.mode);updateBrowserButtons();
   }
   $('browser-form').onsubmit=async e=>{
     e.preventDefault();if(browserRunning)return;browserRunning=true;browserJob=null;browserSummary='';++summaryRevision;summaryRunning=false;$('browser-dialog').classList.remove('research-complete');
     [...$('browser-form').elements,...$('browser-examples').querySelectorAll('button')].forEach(b=>b.disabled=true);updateBrowserButtons();$('restaurant-results').hidden=true;$('browser-summary').hidden=true;$('browser-evidence').hidden=true;$('browser-candidates').hidden=true;$('browser-plan').hidden=true;$('browser-limitations').replaceChildren();$('browser-documents').replaceChildren();$('browser-steps').replaceChildren();$('browser-results').replaceChildren();$('browser-frame').hidden=true;delete $('browser-frame').dataset.revision;$('browser-empty').hidden=false;$('browser-note').textContent='조사 시작 중...';$('browser-live').textContent='연결 중';
     let eventCount=0;
     try{
-      const mode=$('browser-mode').value;browserJob=await api('/api/browser/jobs',{...(mode==='restaurants'?{region:$('restaurant-region').value.trim(),menu:$('restaurant-menu').value.trim()}:{query:$('browser-query').value.trim()}),provider:$('browser-source').value,mode});
+      const mode=$('browser-mode').value;browserJob=await api('/api/browser/jobs',{...(mode==='restaurants'?{region:$('restaurant-region').value.trim(),menu:$('restaurant-menu').value.trim()}:{query:$('browser-query').value.trim()}),provider:mode==='amazon'?'amazon':$('browser-source').value,mode});
       const end=Date.now()+300000;let failures=0;while(Date.now()<end){renderSteps(browserJob);browserJob.events.slice(eventCount).forEach(s=>activity('브라우저',s.text));eventCount=browserJob.events.length;if(browserJob.status!=='running')break;await new Promise(r=>setTimeout(r,600));try{browserJob=await api('/api/browser/jobs/'+browserJob.id);failures=0;}catch(err){if(++failures>=5)throw err;}}
       renderSteps(browserJob);renderResults(browserJob);if(browserJob.status==='running')throw new Error('조사가 지연되고 있습니다. 실행 기록을 확인해주세요.');if(browserJob.status==='error')throw new Error(browserJob.error);renderSummary(browserJob);
     }catch(error){$('browser-note').textContent=error.message;$('browser-live').textContent='오류';activity('브라우저',error.message);}
