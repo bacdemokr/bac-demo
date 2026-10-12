@@ -71,9 +71,11 @@ async function freePort(){const s=http.createServer();await new Promise(r=>s.lis
     await page.locator('#settings-open').click();await page.locator('#tg-token').fill('123456789:'+'x'.repeat(30));await page.locator('#tg-chat').fill('12345');
     await page.getByRole('button',{name:'Telegram 연결',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#tg-status').textContent.includes('fixture_bot'));
     assert.equal(await page.locator('#tg-token').inputValue(),'');assert.deepEqual(writes,['telegram configure']);
+    assert(await page.locator('#tg-connection-card').isVisible());assert(!await page.locator('#telegram-form').isVisible());
     await page.locator('#tab-agentmail').click();await page.locator('#mail-key').fill('fixture-key');await page.locator('#mail-inbox').fill('fixture@agentmail.to');
     await page.getByRole('button',{name:'AgentMail 연결',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#mail-status').textContent.includes('연결됨'));
     assert.equal(await page.locator('#mail-key').inputValue(),'');assert.equal(await page.evaluate(()=>Object.keys(localStorage).length),0);
+    assert(await page.locator('#mail-connection-card').isVisible());assert(!await page.locator('#mail-connect-form').isVisible());
     assert.equal(await page.locator('#gateway-form,#gw-token,#tab-gateway').count(),0);
     await page.locator('[data-close=settings-dialog]').click();
     await page.route('**/api/integrations/agentmail/messages',r=>r.fulfill({json:{messages:[{id:'m1',subject:'<img src=x onerror=alert(1)>',from:'fixture@example.com',preview:'<script>unsafe()</script>',at:new Date().toISOString()}]}}));

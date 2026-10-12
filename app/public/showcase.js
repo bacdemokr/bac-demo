@@ -7,6 +7,8 @@
   let inboxLoading=false, telegramLoading=false, telegramSending=false, telegramCursor=0, telegramTimer;
   let shareSending=false;
   let githubSearching=false,githubForking=false,githubCandidates=[];
+  const connectionEditing={telegram:false,agentmail:false,github:false};
+  const connectionFields={telegram:{prefix:'tg',form:'telegram-form',key:'tg-token',button:'Telegram 연결'},agentmail:{prefix:'mail',form:'mail-connect-form',key:'mail-key',button:'AgentMail 연결'},github:{prefix:'gh',form:'github-form',key:'gh-token',button:'GitHub 연결'}};
   const roles={sysmon:'시스템 상태 · 로컬 도구',github:'GitHub 작업 · OpenClaw MCP',multiagent:'PM / Dev 협업 · GitHub',arxiv:'논문 리서치 · arXiv RSS'};
   const canRun=id=>!!(status.gateway?.reachable&&status.gateway?.configured&&(id!=='github'||status.gateway?.agents?.git!==false||status.github?.connected)&&(id!=='multiagent'||status.team?.configured&&!githubForking&&!status.github?.forking));
   const githubRole=()=>status.gateway?.agents?.git===false?'저장소 조회 · GitHub API':roles.github;
@@ -60,13 +62,36 @@
   function openSettings(tab='telegram'){if(tab==='gateway')tab='tools';selectTab(tab);if(!$('settings-dialog').open)$('settings-dialog').showModal();refreshStatus();}
   $('settings-open').onclick=()=>{demo().closeChat({restoreFocus:false});openSettings();};bindTabs('data-tab',selectTab);
   function showStatus(id,text,error=false){$(id).textContent=text;$(id).classList.toggle('error',error);}
+  function renderConnectionCards(){
+    for(const [type,fields]of Object.entries(connectionFields)){
+      const c=status[type]||{},known=Object.hasOwn(status,type),editing=connectionEditing[type],p=fields.prefix,form=$(fields.form),pending=!!form.dataset.pending;
+      const card=$(p+'-connection-card');card.hidden=!c.configured;form.hidden=!known||!!c.configured&&!editing;
+      form.toggleAttribute('data-credential-editor',!!c.configured&&editing);
+      const note=$(p+'-setup-note');if(note)note.hidden=form.hidden;
+      $(p+'-status').hidden=!!c.connected&&!c.error&&!editing&&!pending;
+      if(!known)showStatus(p+'-status','연결 상태 확인 중...');
+      const state=c.error?'warning':c.connected?'connected':'pending';card.dataset.state=state;
+      $(p+'-connection-label').textContent=state==='connected'?'연결됨':state==='warning'?'설정됨 · 연결 확인 필요':'설정됨 · 연결 확인 중';
+      $(p+'-connection-icon').textContent=state==='connected'?'✓':state==='warning'?'!':'…';
+      $(p+'-connection-identity').textContent=type==='github'?c.login?'@'+c.login:'GitHub 계정':type==='agentmail'?c.inboxId||'AgentMail 받은편지함':c.bot?'@'+c.bot:'Telegram 봇';
+      const source={config:'api.json에서 자동 설정',runtime:'화면에서 입력한 연결 정보',file:'토큰 파일에서 자동 설정',environment:'환경 설정에서 자동 설정'}[c.source]||'등록된 연결 정보';
+      $(p+'-connection-source').textContent=source+(c.connected?' · 인증 확인됨':' · 키 등록됨');
+      const target=$(p+'-connection-target');target.textContent=type==='github'&&c.repo?'작업 저장소 · '+c.owner+'/'+c.repo:type==='telegram'&&c.chatId?'Chat ID · '+c.chatId:'';target.hidden=!target.textContent;
+      const edit=document.querySelector(`[data-connection-edit="${type}"]`);edit.setAttribute('aria-expanded',String(editing));edit.disabled=pending;
+      const cancel=document.querySelector(`[data-connection-cancel="${type}"]`);cancel.hidden=!c.configured;cancel.disabled=pending;
+      form.querySelector('button[type=submit]').textContent=c.configured?'연결 정보 적용':fields.button;
+      $(p+'-disconnect').disabled=!c.configured||pending;
+    }
+  }
+  document.querySelectorAll('[data-connection-edit]').forEach(button=>button.onclick=()=>{const type=button.dataset.connectionEdit;connectionEditing[type]=true;renderConnectionCards();$(connectionFields[type].key).focus();});
+  document.querySelectorAll('[data-connection-cancel]').forEach(button=>button.onclick=()=>{const type=button.dataset.connectionCancel;connectionEditing[type]=false;$(connectionFields[type].key).value='';const c=status[type]||{};if(type==='github')$('gh-repository').value=c.repo?c.owner+'/'+c.repo:'';if(type==='telegram')$('tg-chat').value=c.chatId||'';if(type==='agentmail')$('mail-inbox').value=c.inboxId||'';renderConnections();document.querySelector(`[data-connection-edit="${type}"]`).focus();});
   function renderConnections(){
     const tg=status.telegram||{},mail=status.agentmail||{},gh=status.github||{},gw=status.gateway||{};
     const source=c=>({runtime:'화면 입력',config:'api.json',file:'파일 설정',environment:'환경 설정'}[c.source]||'');
     const sourceNote=c=>source(c)?' · '+source(c):'';
-    if(document.activeElement!==$('tg-chat')&&!$('tg-chat').value)$('tg-chat').value=tg.chatId||'';
-    if(document.activeElement!==$('mail-inbox')&&!$('mail-inbox').value)$('mail-inbox').value=mail.inboxId||'';
-    if(document.activeElement!==$('gh-repository')&&!$('gh-repository').value&&gh.owner&&gh.repo)$('gh-repository').value=gh.owner+'/'+gh.repo;
+    if(!connectionEditing.telegram&&document.activeElement!==$('tg-chat')&&!$('tg-chat').value)$('tg-chat').value=tg.chatId||'';
+    if(!connectionEditing.agentmail&&document.activeElement!==$('mail-inbox')&&!$('mail-inbox').value)$('mail-inbox').value=mail.inboxId||'';
+    if(!connectionEditing.github&&document.activeElement!==$('gh-repository')&&!$('gh-repository').value&&gh.owner&&gh.repo)$('gh-repository').value=gh.owner+'/'+gh.repo;
     if(!$('telegram-form').dataset.pending)showStatus('tg-status',tg.connected?`@${tg.bot} · Chat ${tg.chatId}${sourceNote(tg)}${tg.error?' · 수신 연결 확인 필요':''}`:tg.error||(tg.configured?'연결 확인 중...':'연결 전'),!!tg.error);
     if(!$('mail-connect-form').dataset.pending)showStatus('mail-status',mail.connected?`연결됨 · ${mail.inboxId}${sourceNote(mail)}`:mail.error||(mail.configured?'연결 확인 중...':'연결 전'),!!mail.error);
     if(!$('github-form').dataset.pending)showStatus('gh-status',gh.connected?`연결됨 · ${gh.repo?gh.owner+'/'+gh.repo:'@'+gh.login}${sourceNote(gh)}${gh.repo&&!gh.canWrite?' · 저장소 쓰기 불가':''}`:gh.error|| (gh.configured?'연결 확인 중...':'연결 전'),!!gh.error);
@@ -75,6 +100,7 @@
     $('gh-work').hidden=!gh.canWrite||githubForking||!!gh.forking;
     $('tg-disconnect').disabled=!!$('telegram-form').dataset.pending||!tg.configured;$('mail-disconnect').disabled=!!$('mail-connect-form').dataset.pending||!mail.configured;
     $('gh-disconnect').disabled=!!$('github-form').dataset.pending||!gh.configured;
+    renderConnectionCards();
     const runtime=canRun('web-summary');$('runtime-status').classList.toggle('connected',runtime);$('runtime-status').lastChild.textContent=runtime?' AI 연결됨':' AI 서비스 확인 필요';
     $('tool-status-list').replaceChildren();
     const rows=[['AI 실행 서비스',runtime?'자동 연결됨':gw.error||'실행 상태 확인 필요'],['브라우저 · CDP',status.browser?.connected?'연결됨':'브라우저 실행 필요'],['GitHub API',gh.connected?gh.repo?`${gh.owner}/${gh.repo}`:'@'+gh.login:gh.error||'연결 전'],['GitHub MCP',gw.agents?.git===false?'설정된 에이전트 없음':'OpenClaw의 git 에이전트에서 설정'],['PM / Dev 협업',status.team?.configured?`설정됨 · ${status.team.repository}`:gh.connected&&!gh.repo?'공개 저장소를 Fork한 뒤 작업 가능':'OpenClaw 및 GitHub 토큰 필요'],['Telegram',tg.connected?'연결됨':'연결 전'],['AgentMail',mail.connected?'연결됨':'연결 전']];
@@ -92,9 +118,10 @@
   async function configure(formId,statusId,path,body,keyId){
     const form=$(formId);if(form.dataset.pending)return;form.dataset.pending='true';++connectionRevision;
     const controls=[...form.querySelectorAll('input,button')];controls.forEach(b=>b.disabled=true);showStatus(statusId,'연결 확인 중...');
-    try{const result=await api(path,body);const type=path.split('/').pop();status[type]=result;$(keyId).value='';if(type==='telegram'){telegramCursor=0;$('telegram-messages').replaceChildren();}else if(type==='agentmail')$('inbox-messages').replaceChildren();else if(type==='github')status.team={...status.team,configured:!!status.gateway?.configured&&result.connected&&result.canWrite,repository:result.repo?result.owner+'/'+result.repo:''};activity(type,body.disconnect?'연결 해제':'연결 완료');}
+    renderConnectionCards();
+    try{const result=await api(path,body);const type=path.split('/').pop();status[type]=result;connectionEditing[type]=false;$(keyId).value='';if(type==='telegram'){telegramCursor=0;$('telegram-messages').replaceChildren();}else if(type==='agentmail')$('inbox-messages').replaceChildren();else if(type==='github')status.team={...status.team,configured:!!status.gateway?.configured&&result.connected&&result.canWrite,repository:result.repo?result.owner+'/'+result.repo:''};activity(type,body.disconnect?'연결 해제':'연결 완료');}
     catch(e){showStatus(statusId,e.message,true);return;}
-    finally{delete form.dataset.pending;controls.forEach(b=>b.disabled=false);$('tg-disconnect').disabled=!status.telegram?.configured;$('mail-disconnect').disabled=!status.agentmail?.configured;$('gh-disconnect').disabled=!status.github?.configured;}
+    finally{delete form.dataset.pending;controls.forEach(b=>b.disabled=false);renderConnectionCards();}
     renderConnections();if($('inbox-dialog').open){if($('message-telegram').hidden)loadInbox();else loadTelegram();}
   }
   $('telegram-form').onsubmit=e=>{e.preventDefault();configure('telegram-form','tg-status','/api/integrations/telegram',{token:$('tg-token').value.trim(),chatId:$('tg-chat').value.trim()},'tg-token');};
@@ -125,7 +152,7 @@
   $('tg-disconnect').onclick=()=>configure('telegram-form','tg-status','/api/integrations/telegram',{disconnect:true},'tg-token');
   $('mail-disconnect').onclick=()=>configure('mail-connect-form','mail-status','/api/integrations/agentmail',{disconnect:true},'mail-key');
   $('gh-disconnect').onclick=()=>configure('github-form','gh-status','/api/integrations/github',{disconnect:true},'gh-token');
-  $('settings-dialog').addEventListener('close',()=>{$('tg-token').value='';$('mail-key').value='';$('gh-token').value='';});
+  $('settings-dialog').addEventListener('close',()=>{for(const [type,fields]of Object.entries(connectionFields)){connectionEditing[type]=false;$(fields.key).value='';}renderConnectionCards();});
   const examples={news:'최근 일주일 NVIDIA와 로컬 AI 관련 주요 발표를 정리해줘. 발표 날짜와 출처도 알려줘.',compare:'DGX Spark와 Jetson을 비교해줘. 사용 목적, 실행할 수 있는 AI 작업, 선택할 때 고려할 점을 공식 자료로 확인해줘.',research:'로컬에서 AI 에이전트를 실행하는 실제 사례를 조사해줘. 사용한 도구와 활용 방식, 출처를 함께 정리해줘.'};
   function syncBrowserMode(){
     const mode=$('browser-mode').value,food=mode==='restaurants';

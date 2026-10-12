@@ -102,6 +102,25 @@ input:focus,select:focus,textarea:focus{border-color:var(--mint);box-shadow:0 0 
 .privacy-note{font-size:9px;line-height:1.7;color:#627c70;border-top:1px solid #273c30;margin-top:22px;padding-top:15px}
 .form-status{font-size:12px;line-height:1.7;color:var(--mint);min-height:18px;margin-top:12px}
 .form-status.error{color:#ffb8aa}
+.connection-card{padding:18px;border:1px solid #47735e;border-radius:12px;background:linear-gradient(120deg,#19362b,#142820);margin:4px 0 20px}
+.connection-card-head{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.connection-account{display:flex;align-items:center;gap:12px;min-width:0}
+.connection-account>div{min-width:0}
+.connection-check{flex-shrink:0;display:grid;place-items:center;width:34px;height:34px;background:#b8f775;color:#17391d;border-radius:50%;font-size:19px;font-weight:700}
+.connection-label{font-size:12px;font-weight:600;color:#bcf390;margin:0 0 5px}
+.connection-account strong{display:block;font-size:17px;font-weight:600;overflow-wrap:anywhere}
+.connection-controls{display:flex;flex-wrap:wrap;gap:7px;flex-shrink:0}
+.connection-controls .quiet-button{padding:8px 10px;font-size:10px}
+.connection-source,.connection-target{font-size:11px;line-height:1.7;color:#acc5b5;margin:12px 0 0;overflow-wrap:anywhere}
+.connection-target{margin-top:5px}
+.connection-card[data-state=warning]{border-color:#79613c;background:linear-gradient(120deg,#30271b,#24251e)}
+.connection-card[data-state=warning] .connection-check{background:#f1c779;color:#3d2c15}
+.connection-card[data-state=warning] .connection-label{color:#f1c779}
+.connection-card[data-state=pending]{border-color:#425f67;background:#172b30}
+.connection-card[data-state=pending] .connection-check{background:#86c8d5;color:#19343b}
+.connection-card[data-state=pending] .connection-label{color:#b8dce2}
+#settings-dialog form[data-credential-editor]{padding:0 0 15px;border-bottom:1px solid #30453c;margin-bottom:15px}
+@media(max-width:640px){.connection-card-head{align-items:flex-start;flex-direction:column;gap:13px}.connection-card{padding:15px}.connection-account strong{font-size:16px}.connection-controls{padding-left:46px}}
 .tool-row{display:flex;align-items:center;justify-content:space-between;padding:15px 0;border-bottom:1px solid #273d30;font-size:12px}
 .tool-row small{font-size:10px;color:var(--muted)}
 .docs-link{display:inline-block;font-size:12px;margin-top:22px}
