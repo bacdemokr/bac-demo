@@ -67,7 +67,7 @@ AI 응답에는 기존 OpenClaw·로컬 모델·NVIDIA API 중 하나만 연결�
 }
 ```
 
-`active`는 `local`, `nvidia`, `gateway` 중 하나입니다. 기존 설정 파일에는 models를 추가하지 않아도 기존 OpenClaw 연결을 사용합니다. 파일로 설정하면 시작 시 모델 목록을 확인하며, 검증 실패 시 다른 모델로 자동 전환하지 않습니다. 화면에서 검증한 모델 연결과 선택은 api.json에 자동 저장되어 재시작 후에도 유지됩니다. API 키가 포함된 파일은 소유자만 읽고 쓸 수 있도록 0600 권한으로 저장합니다. 사내 Inference Hub는 `https://inference-api.nvidia.com/v1`, 공개 NVIDIA API Catalog는 `https://integrate.api.nvidia.com/v1`을 사용합니다. 해당 서비스의 API 키를 입력하세요. 주소를 변경하면 기존 키를 다른 서버로 전달하지 않습니다.
+`active`는 `local`, `nvidia`, `gateway` 중 하나이며 새 설치의 기본값은 `nvidia`입니다. NVIDIA API 키를 입력하기 전에는 AI 연결 대기 상태로 시작하며 OpenClaw나 로컬 vLLM으로 자동 전환하지 않습니다. api.local.json이 있으면 공개 api.json보다 우선합니다. --config를 지정하면 해당 파일을 읽고 저장합니다. 기존 설정 파일에는 models를 추가하지 않아도 기존 OpenClaw 연결을 사용합니다. 파일로 설정하면 시작 시 모델 목록을 확인하며, 검증 실패 시 다른 모델로 자동 전환하지 않습니다. 화면에서 검증한 모델 연결과 선택은 Git에서 제외된 api.local.json에 자동 저장되어 재시작 후에도 유지됩니다. API 키가 포함된 파일은 소유자만 읽고 쓸 수 있도록 0600 권한으로 저장합니다. 사내 Inference Hub는 `https://inference-api.nvidia.com/v1`, 공개 NVIDIA API Catalog는 `https://integrate.api.nvidia.com/v1`을 사용합니다. 해당 서비스의 API 키를 입력하세요. 주소를 변경하면 기존 키를 다른 서버로 전달하지 않습니다.
 
 ## 권장 시연 흐름
 

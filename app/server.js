@@ -520,7 +520,7 @@ async function runMultiagent(job) {
 // Bind every PR request to the connection captured when its job started.
 function ghReq(method,p,body,connection){return github.request(connection||github.requireConnection(),method,p,body);}
 
-// Model settings persist to api.json; other runtime integration settings stay in memory.
+// Model settings persist to the private local config; other runtime integration settings stay in memory.
 const { createShowcase } = require("./showcase-api");
 const models=new ModelConnections({config:connections.models,persist:saveModels,canConfigure:()=>![...chatJobs.jobs.values()].some(j=>j.status==='pending')&&![...MA_JOBS.values()].some(j=>!j.done)&&!showcase.browser.busy});
 const showcase = createShowcase({ github, models, telegramConfig:connections.telegram, mailConfig:connections.agentmail, gateway: ()=>GATEWAY, gatewayToken: ()=>TOKEN,
@@ -563,8 +563,8 @@ resolveOpenClaw().then(runtime=>{
   gatewayRuntime=runtime;GATEWAY=runtime.url;TOKEN=runtime.token;
   server.listen(PORT, process.env.HOST || "127.0.0.1", () => {
     console.log(`Agentic AI Demo on http://127.0.0.1:${PORT}`);
-    if(TOKEN) console.log(`OpenClaw 자동 연결: ${GATEWAY} (agent ${runtime.agent})`);
-    else if(models.active==='gateway') console.log('AI 기능은 화면의 연결 설정 → 모델에서 필요한 연결 하나를 설정하세요.');
+    if(TOKEN&&models.active==='gateway') console.log(`OpenClaw 자동 연결: ${GATEWAY} (agent ${runtime.agent})`);
+    else if(!aiReady()) console.log('AI 기능은 화면의 연결 설정 → 모델에서 필요한 연결 하나를 설정하세요.');
     if(TG_TOKEN) console.log('Telegram 연결 설정을 확인합니다.');
     showcase.start();models.start();
   });

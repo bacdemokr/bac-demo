@@ -11,7 +11,7 @@
     "inboxId": ""
   },
   "models": {
-    "active": "gateway",
+    "active": "nvidia",
     "local": {
       "baseUrl": "http://127.0.0.1:8001/v1",
       "model": "",
