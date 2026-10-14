@@ -38,7 +38,7 @@ Node.js 20.6 이상이 필요합니다. `.env` 복사와 OpenClaw 설치는 필�
 ./bac start
 ```
 
-[http://127.0.0.1:8000](http://127.0.0.1:8000)에서 열립니다. 첫 실행에는 앱 패키지를 설치하며, 설치된 Chrome/Chromium을 찾아 브라우저 탐색도 준비합니다. 실행 중인 CDP 브라우저가 있으면 연결해 사용합니다. **Ctrl+C**로 앱과 이 명령이 시작한 브라우저를 종료하며, 기존 브라우저와 OpenClaw는 계속 실행됩니다. 상태 확인은 `./bac status`, 다른 포트는 `./bac start --port 8001`입니다. 브라우저 준비를 생략하려면 `--no-browser`, 별도 설정 파일은 `--config /path/to/api.json`을 사용하세요. `.env`도 자동으로 읽습니다.
+[http://127.0.0.1:8000](http://127.0.0.1:8000)에서 열립니다. 첫 실행에는 앱 패키지를 설치하며, 설치된 Chrome/Chromium을 찾아 브라우저 탐색도 준비합니다. 실행 중인 CDP 브라우저가 있으면 연결해 사용합니다. **`./bac stop`** 또는 **Ctrl+C**로 앱과 이 명령이 시작한 브라우저를 종료하며, 기존 브라우저와 OpenClaw는 계속 실행됩니다. 종료 후 앱 포트가 닫혔는지도 확인합니다. 상태 확인은 `./bac status`, 다른 포트는 `./bac start --port 8001`입니다. 다른 포트로 실행한 앱은 `./bac stop --port 8001`처럼 종료합니다. 브라우저 준비를 생략하려면 `--no-browser`, 별도 설정 파일은 `--config /path/to/api.json`을 사용하세요. `.env`도 자동으로 읽습니다.
 
 AI 응답에는 기존 OpenClaw·로컬 모델·NVIDIA API 중 하나만 연결하면 됩니다. 시스템 지표·논문 목록·맛집 및 아마존 검색은 AI 모델이나 서비스 키 없이 사용할 수 있습니다. GitHub·Telegram·AgentMail은 사용할 기능만 연결하세요. 상세 설정은 [INSTALL.md](INSTALL.md)를 참고하세요.
 

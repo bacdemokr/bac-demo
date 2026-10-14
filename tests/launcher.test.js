@@ -62,7 +62,9 @@ test('launcher loads .env and all JSON providers, installs missing dependencies,
     await fetch(base + '/api/integrations/telegram', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ disconnect: true }) });
     await fetch(base + '/api/integrations/agentmail', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ disconnect: true }) });
     assert.equal(await fs.readFile(file, 'utf8'), raw);
-    running.child.kill('SIGTERM'); assert.equal((await running.done).code, 0); await assert.rejects(fetch(base + '/api/health'));
+    const stopper=launch(temporary,['stop','--port',String(port)],env);assert.equal((await stopper.done).code,0,stopper.logs());assert(stopper.logs().includes('종료했습니다'));assert.equal((await running.done).code,0);await assert.rejects(fetch(base+'/api/health'));
+    await assert.rejects(fs.stat(path.join(temporary,'.bac',`launcher-${port}.json`)));
+    const againStop=launch(temporary,['stop','--port',String(port)],env);assert.equal((await againStop.done).code,0);assert(againStop.logs().includes('실행 중이지'));
     // The unrelated fixture service must stay alive.
     assert.equal((await fetch('http://127.0.0.1:' + provider.address().port + '/user')).status, 200);
     // A new checkout starts with no credential file; it should create a private blank template.
@@ -92,4 +94,36 @@ test('launcher refuses unrelated occupied ports and malformed config without pri
     const invalid = launch(root, ['start', '--port', String(await freePort()), '--config', file, '--no-browser'], {}); assert.equal((await invalid.done).code, 1); assert(invalid.logs().includes('JSON 형식')); assert(!invalid.logs().includes('private-do-not-print'));
     assert.equal((await fetch('http://127.0.0.1:' + server.address().port)).status, 404);
   } finally { server.closeAllConnections(); await new Promise(r => server.close(r)); await fs.rm(temporary, { recursive: true, force: true }); }
+});
+test('stop closes owned browser ports, preserves reused services, and rejects stale ownership and unauthenticated requests', {timeout:30000}, async()=>{
+ const temporary=await fs.mkdtemp(path.join(os.tmpdir(),'bac-stop-'));let running;
+ const external=http.createServer((req,res)=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify({webSocketDebuggerUrl:'ws://127.0.0.1/external'}));});
+ await new Promise(r=>external.listen(0,'127.0.0.1',r));
+ try{
+  for(const name of ['app','scripts'])await fs.cp(path.join(root,name),path.join(temporary,name),{recursive:true,filter:file=>!path.basename(file).startsWith('.')});
+  for(const name of ['bac','api.example.json'])await fs.copyFile(path.join(root,name),path.join(temporary,name));
+  await fs.chmod(path.join(temporary,'bac'),0o755);await fs.symlink(path.join(root,'node_modules'),path.join(temporary,'node_modules'),'dir');
+  const browser=path.join(temporary,'fixture-chrome');
+  await fs.writeFile(browser,'#!'+process.execPath+'\n'+`const http=require('node:http');const port=Number(process.argv.find(a=>a.startsWith('--remote-debugging-port=')).split('=')[1]);http.createServer((req,res)=>{res.setHeader('Content-Type','application/json');res.end(JSON.stringify({webSocketDebuggerUrl:'ws://127.0.0.1/owned'}));}).listen(port,'127.0.0.1');\n`,{mode:0o755});
+  const port=await freePort(),cdpPort=await freePort(),base='http://127.0.0.1:'+port;
+  const env={HOST:'127.0.0.1',BAC_API_CONFIG:'',OPENCLAW_CONFIG_PATH:path.join(temporary,'missing-openclaw.json'),OPENCLAW_STATE_DIR:'',GATEWAY_URL:'http://127.0.0.1:1',GATEWAY_TOKEN:'',GITHUB_TOKEN:'',TG_BOT_TOKEN:'',TG_CHAT_ID:'',AGENTMAIL_API_KEY:'',AGENTMAIL_INBOX_ID:'',CHROME_EXECUTABLE:browser,BROWSER_CDP_URL:'http://127.0.0.1:'+cdpPort};
+  const waitReady=async()=>{for(let i=0;i<150;i++){if(running.child.exitCode!==null)throw Error(running.logs());if(running.logs().includes('앱 주소:'))return;await wait(50);}throw Error(running.logs());};
+  running=launch(temporary,['start','--port',String(port)],env);await waitReady();
+  const record=path.join(temporary,'.bac',`launcher-${port}.json`),state=JSON.parse(await fs.readFile(record,'utf8'));assert.equal((await fs.stat(record)).mode&0o777,0o600);
+  assert.equal((await fetch(`http://127.0.0.1:${state.controlPort}/stop`,{method:'POST'})).status,403);assert.equal((await fetch(base+'/api/health')).status,200);
+  await fs.writeFile(record,JSON.stringify({...state,instanceId:'stale-instance'}));
+  const stale=launch(temporary,['stop','--port',String(port)],env);assert.equal((await stale.done).code,1);assert.equal((await fetch(base+'/api/health')).status,200);
+  await fs.writeFile(record,JSON.stringify(state));
+  const stopped=launch(temporary,['stop','--port',String(port)],env);assert.equal((await stopped.done).code,0,stopped.logs());assert.equal((await running.done).code,0);
+  await assert.rejects(fetch(base+'/api/health'));await assert.rejects(fetch(`http://127.0.0.1:${cdpPort}/json/version`));await assert.rejects(fetch(`http://127.0.0.1:${state.controlPort}/stop`));
+  env.BROWSER_CDP_URL='http://127.0.0.1:'+external.address().port;
+  running=launch(temporary,['start','--port',String(port)],env);await waitReady();assert(running.logs().includes('실행 중인 브라우저'));
+  // A broken credentials file must never prevent stopping an already running app.
+  await fs.writeFile(path.join(temporary,'api.json'),'invalid-private-value{');
+  const reused=launch(temporary,['stop','--port',String(port)],env);assert.equal((await reused.done).code,0,reused.logs());await running.done;assert.equal((await fetch(env.BROWSER_CDP_URL+'/json/version')).status,200);
+  const unrelated=launch(temporary,['stop','--port',String(external.address().port)],env);assert.equal((await unrelated.done).code,1);assert.equal((await fetch(env.BROWSER_CDP_URL)).status,200);
+ }finally{
+  if(running&&running.child.exitCode===null){running.child.kill('SIGTERM');await running.done;}
+  external.closeAllConnections();await new Promise(r=>external.close(r));await fs.rm(temporary,{recursive:true,force:true});
+ }
 });

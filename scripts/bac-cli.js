@@ -3,15 +3,18 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const net = require('node:net');
+const http = require('node:http');
 const { spawn } = require('node:child_process');
 const { randomUUID } = require('node:crypto');
 const { loadAPIConfig } = require('../app/api-config');
 const root = path.resolve(__dirname, '..');
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const help = `사용법: ./bac start [--port 8000] [--config api.json] [--no-browser]
+        ./bac stop [--port 8000]
         ./bac status [--port 8000]
 
 start   앱 실행, 필요한 패키지 설치 및 로컬 브라우저 준비
+stop    이 명령으로 실행한 앱과 브라우저 종료
 status  앱 실행 상태 확인
 종료    실행 중인 터미널에서 Ctrl+C
 
@@ -30,6 +33,23 @@ function occupied(host, port) {
     socket.once('connect', () => done(true)); socket.once('error', () => done(false)); socket.once('timeout', () => done(false));
   });
 }
+function stateFile(port) { return path.join(root, '.bac', `launcher-${port}.json`); }
+async function stopManaged(port, host, url, current) {
+  let state;
+  try { state = JSON.parse(fs.readFileSync(stateFile(port), 'utf8')); } catch {}
+  if (!current && !await occupied(host, port)) { console.log(`앱이 실행 중이지 않습니다: ${url}`); return; }
+  if (!state || current?.app !== 'agentic-ai-demo' || current.instanceId !== state.instanceId || !Number.isInteger(state.controlPort) || state.controlPort < 1 || state.controlPort > 65535 || typeof state.token !== 'string' || !/^[a-f0-9-]{36}$/.test(state.token))
+    throw Error('이 폴더의 ./bac start로 실행한 앱을 확인할 수 없습니다. 기존 실행 터미널의 Ctrl+C 또는 해당 서비스의 종료 명령을 사용해주세요.');
+  let response;
+  try { response = await fetch(`http://127.0.0.1:${state.controlPort}/stop`, { method: 'POST', headers: { Authorization: 'Bearer ' + state.token }, signal: AbortSignal.timeout(8000), redirect: 'error' }); }
+  catch { throw Error('종료 요청을 전달하지 못했습니다. 기존 실행 터미널에서 Ctrl+C를 눌러주세요.'); }
+  if (!response.ok) throw Error('실행 중인 앱의 종료 정보를 확인할 수 없습니다. 다른 프로세스는 종료하지 않았습니다.');
+  for (let i = 0; i < 40; i++) {
+    if (!await occupied(host, port) && !await occupied('127.0.0.1', state.controlPort)) { console.log(`앱과 관리 중인 브라우저를 종료했습니다: ${url}`); return; }
+    await wait(100);
+  }
+  throw Error('종료 요청은 전달했지만 포트가 아직 사용 중입니다. 실행 상태를 확인해주세요.');
+}
 function findBrowser() {
   const candidates = process.env.CHROME_EXECUTABLE ? [process.env.CHROME_EXECUTABLE] : process.platform === 'darwin' ? [
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
@@ -40,7 +60,7 @@ function findBrowser() {
 async function main(args = process.argv.slice(2)) {
   const command = args.shift() || 'help';
   if (['help', '--help', '-h'].includes(command)) { console.log(help); return; }
-  if (!['start', 'status'].includes(command)) throw Error(help);
+  if (!['start', 'stop', 'status'].includes(command)) throw Error(help);
   const env = { ...process.env };
   let autoBrowser = true;
   while (args.length) {
@@ -56,6 +76,7 @@ async function main(args = process.argv.slice(2)) {
   const localHost = ['0.0.0.0', '::'].includes(host) ? '127.0.0.1' : host;
   const url = `http://${localHost.includes(':') ? '[' + localHost + ']' : localHost}:${port}`;
   const current = await json(url + '/api/health');
+  if (command === 'stop') return stopManaged(port, localHost, url, current);
   if (current?.app === 'agentic-ai-demo') { console.log(`이미 실행 중입니다: ${url}`); return; }
   if (command === 'status') { console.log(`앱이 실행 중이지 않습니다: ${url}`); return; }
   if (await occupied(localHost, port)) throw Error(`${port}번 포트를 다른 프로그램이 사용하고 있습니다. ./bac start --port 8001로 실행할 수 있습니다.`);
@@ -75,24 +96,32 @@ async function main(args = process.argv.slice(2)) {
       installer.once('exit', code => code === 0 ? resolve() : reject(Error('패키지 설치를 완료하지 못했습니다. 네트워크 상태를 확인해주세요.')));
     });
   }
-  const owned = new Set(); let stopped = false;
-  const stop = async () => {
-    if (stopped) return;
+  const owned = new Set(); let stopped = false, shutdown;
+  const stop = () => shutdown ||= (async () => {
     stopped = true;
     const children = [...owned];
     for (const child of children) if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
     for (let i = 0; i < 20 && children.some(child => child.exitCode === null && child.signalCode === null); i++) await wait(100);
     for (const child of children) if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
-  };
+    for (let i = 0; i < 10 && children.some(child => child.exitCode === null && child.signalCode === null); i++) await wait(100);
+  })();
   const signal = () => { stop().then(() => { process.exitCode = 0; }); };
   process.on('SIGINT', signal); process.on('SIGTERM', signal);
-  const instanceId = randomUUID();
+  const instanceId = randomUUID(), controlToken = randomUUID();
+  const control = http.createServer(async (req, res) => {
+    if (req.method !== 'POST' || req.url !== '/stop' || req.headers.authorization !== 'Bearer ' + controlToken) { res.writeHead(403); res.end(); return; }
+    await stop(); res.writeHead(200); res.end();
+  });
+  const clearState = () => {
+    try { if (JSON.parse(fs.readFileSync(stateFile(port), 'utf8')).instanceId === instanceId) fs.unlinkSync(stateFile(port)); } catch {}
+  };
   const app = spawn(process.execPath, [path.join(root, 'app/server.js')], { cwd: root, env: { ...env, PORT: String(port), BAC_INSTANCE_ID: instanceId }, stdio: ['ignore', 'inherit', 'inherit'] });
   owned.add(app);
   const appExit = new Promise(resolve => {
     app.once('error', () => resolve(1)); app.once('exit', code => resolve(code ?? 0));
   });
   try {
+    await new Promise((resolve, reject) => { control.once('error', reject); control.listen(0, '127.0.0.1', resolve); });
     let ready = false;
     for (let i = 0; i < 100 && !stopped && app.exitCode === null && app.signalCode === null; i++) {
       if ((await json(url + '/api/health'))?.instanceId === instanceId) { ready = true; break; }
@@ -100,17 +129,21 @@ async function main(args = process.argv.slice(2)) {
     }
     if (stopped) return;
     if (!ready) throw Error('앱을 시작하지 못했습니다. 위의 실행 상태를 확인해주세요.');
+    fs.mkdirSync(path.dirname(stateFile(port)), { recursive: true, mode: 0o700 });
+    fs.writeFileSync(stateFile(port), JSON.stringify({ instanceId, controlPort: control.address().port, token: controlToken }), { mode: 0o600 });
     if (autoBrowser) {
       let endpoint;
       try { endpoint = new URL(env.BROWSER_CDP_URL || 'http://127.0.0.1:9222'); }
       catch { throw Error('BROWSER_CDP_URL 주소를 확인해주세요.'); }
       const version = await json(endpoint.href.replace(/\/$/, '') + '/json/version');
+      if (stopped) return;
       if (version?.webSocketDebuggerUrl) console.log('실행 중인 브라우저에 연결했습니다.');
       else if (endpoint.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(endpoint.hostname) && endpoint.pathname === '/' && !endpoint.username && !endpoint.password) {
         const executable = findBrowser(), cdpPort = Number(endpoint.port || 80);
         if (!executable) console.log('브라우저 탐색은 Chrome 또는 Chromium 설치 후 사용할 수 있습니다.');
         else if (await occupied(endpoint.hostname, cdpPort)) console.log('브라우저 포트가 사용 중입니다. 연결 설정에서 도구 상태를 확인해주세요.');
         else {
+          if (stopped) return;
           const profile = path.join(root, '.bac', 'browser-profile'); fs.mkdirSync(profile, { recursive: true, mode: 0o700 });
           const browser = spawn(executable, ['--headless=new', '--remote-debugging-address=127.0.0.1', `--remote-debugging-port=${cdpPort}`, `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check', 'about:blank'], { stdio: 'ignore' });
           owned.add(browser); browser.on('error', () => {});
@@ -124,9 +157,13 @@ async function main(args = process.argv.slice(2)) {
       } else console.log('설정한 브라우저 서비스의 연결을 확인해주세요.');
     }
     if (stopped) return;
-    console.log(`\n앱 주소: ${url}\n종료하려면 Ctrl+C를 누르세요.`);
+    console.log(`\n앱 주소: ${url}\n종료하려면 ./bac stop 또는 Ctrl+C를 사용하세요.`);
     process.exitCode = await appExit;
-  } finally { await stop(); process.removeListener('SIGINT', signal); process.removeListener('SIGTERM', signal); }
+  } finally {
+    await stop(); clearState();
+    await new Promise(resolve => control.close(resolve));
+    process.removeListener('SIGINT', signal); process.removeListener('SIGTERM', signal);
+  }
 }
 if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });
 module.exports = { main, findBrowser };
