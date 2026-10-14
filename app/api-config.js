@@ -68,4 +68,16 @@ function loadConnections({ root = path.resolve(__dirname, '..'), env = process.e
     agentmail: m.apiKey ? { apiKey: m.apiKey, inboxId: m.inboxId, source: 'config' } : { apiKey: env.AGENTMAIL_API_KEY || '', inboxId: env.AGENTMAIL_INBOX_ID || m.inboxId || '', source: env.AGENTMAIL_API_KEY ? 'environment' : 'none' },
   };
 }
-module.exports = { loadAPIConfig, loadConnections, ConfigError };
+function saveModels(models, { root = path.resolve(__dirname, '..'), env = process.env } = {}) {
+  const file = env.BAC_API_CONFIG ? path.resolve(root, env.BAC_API_CONFIG) : path.join(root, 'api.json');
+  const config = loadAPIConfig({root, env});
+  config.models = models;
+  const temporary = file + '.' + require('node:crypto').randomUUID() + '.tmp';
+  try {
+    fs.writeFileSync(temporary, JSON.stringify(config, null, 2) + '\n', {mode:0o600, flag:'wx'});
+    fs.renameSync(temporary, file);
+  } catch {
+    throw new ConfigError('모델 설정을 저장하지 못했습니다. api.json 경로와 쓰기 권한을 확인해주세요.');
+  } finally { try { fs.unlinkSync(temporary); } catch {} }
+}
+module.exports = { loadAPIConfig, loadConnections, saveModels, ConfigError };

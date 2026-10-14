@@ -29,7 +29,7 @@ test('actual app uses runtime credentials and target immediately for read-only c
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'runtime-github-')),config=path.join(root,'openclaw.json');
  await fs.writeFile(config,JSON.stringify({gateway:{port:gateway.address().port,auth:{token:'gateway-fixture'}},agents:{entries:[{id:'fixture-host',default:true}]}}));
  const port=await freePort(),base='http://127.0.0.1:'+port;
- const child=spawn(process.execPath,['--require',path.resolve(__dirname,'github-fetch-fixture.cjs'),'app/server.js'],{cwd:path.resolve(__dirname,'..'),env:{...process.env,BAC_STATE_DIR:root,PORT:String(port),OPENCLAW_CONFIG_PATH:config,GATEWAY_URL:'',GATEWAY_TOKEN:'',GITHUB_TOKEN:'',GH_OWNER:'default-owner',GH_REPO:'default-repo',GITHUB_FIXTURE_URL:'http://127.0.0.1:'+provider.address().port,TG_BOT_TOKEN:'',TG_CHAT_ID:'',AGENTMAIL_API_KEY:'',AGENTMAIL_INBOX_ID:''},stdio:'ignore'});
+ const child=spawn(process.execPath,['--require',path.resolve(__dirname,'github-fetch-fixture.cjs'),'app/server.js'],{cwd:path.resolve(__dirname,'..'),env:{...process.env,BAC_API_CONFIG:path.join(__dirname,'gateway-api-fixture.json'),BAC_STATE_DIR:root,PORT:String(port),OPENCLAW_CONFIG_PATH:config,GATEWAY_URL:'',GATEWAY_TOKEN:'',GITHUB_TOKEN:'',GH_OWNER:'default-owner',GH_REPO:'default-repo',GITHUB_FIXTURE_URL:'http://127.0.0.1:'+provider.address().port,TG_BOT_TOKEN:'',TG_CHAT_ID:'',AGENTMAIL_API_KEY:'',AGENTMAIL_INBOX_ID:''},stdio:'ignore'});
  const post=(route,data)=>fetch(base+route,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
  try{
   for(let i=0;i<100;i++){try{if((await fetch(base+'/api/agents')).ok)break;}catch{}await wait(30);}

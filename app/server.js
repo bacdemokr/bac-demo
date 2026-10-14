@@ -27,7 +27,7 @@ const { execFile } = require("child_process");
 const {GitHubConnection}=require('./github-connection');
 const {githubCommand}=require('./github-chat');
 async function githubChatCommand(messages){return githubCommand(github,messages);}
-const {loadConnections}=require('./api-config');
+const {loadConnections,saveModels}=require('./api-config');
 let connections;
 try { connections=loadConnections(); }
 catch(error) { console.error(error.message); process.exit(1); }
@@ -520,9 +520,9 @@ async function runMultiagent(job) {
 // Bind every PR request to the connection captured when its job started.
 function ghReq(method,p,body,connection){return github.request(connection||github.requireConnection(),method,p,body);}
 
-// Runtime integration settings are held in server memory only.
+// Model settings persist to api.json; other runtime integration settings stay in memory.
 const { createShowcase } = require("./showcase-api");
-const models=new ModelConnections({config:connections.models,canConfigure:()=>![...chatJobs.jobs.values()].some(j=>j.status==='pending')&&![...MA_JOBS.values()].some(j=>!j.done)&&!showcase.browser.busy});
+const models=new ModelConnections({config:connections.models,persist:saveModels,canConfigure:()=>![...chatJobs.jobs.values()].some(j=>j.status==='pending')&&![...MA_JOBS.values()].some(j=>!j.done)&&!showcase.browser.busy});
 const showcase = createShowcase({ github, models, telegramConfig:connections.telegram, mailConfig:connections.agentmail, gateway: ()=>GATEWAY, gatewayToken: ()=>TOKEN,
   browserAsk:()=>{
     if(!aiReady())return null;

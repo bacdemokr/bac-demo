@@ -33,3 +33,13 @@ test('unified model configuration validates endpoints, required active models an
  fs.writeFileSync(file,JSON.stringify({models:{active:'local',local:{baseUrl:'http://127.0.0.1:8001/v1',model:'demo-model'},nvidia:{baseUrl:'https://inference-api.nvidia.com/v1',model:'demo-model',apiKey:'file-secret'}}}));assert.equal(loadAPIConfig({root,env:{}}).models.active,'local');
  for(const models of [{active:'bad'},{active:'local'},{nvidia:{model:'demo-model'}},{nvidia:{apiKey:'file-secret',baseUrl:'https://evil.example/v1'}},{local:{extra:'file-secret'}}]){fs.writeFileSync(file,JSON.stringify({models}));assert.throws(()=>loadAPIConfig({root,env:{}}),e=>!e.message.includes('file-secret'));}
 });
+
+test('saved model selection survives restart and save failures preserve the active provider',async t=>{
+ const {saveModels}=require('../app/api-config');
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'model-persist-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const m=new ModelConnections({fetcher:fixture([]),persist:models=>saveModels(models,{root,env:{}})});
+ await m.configure({provider:'nvidia',model:'demo-model',apiKey:'private-key'});
+ const restarted=new ModelConnections({config:loadAPIConfig({root,env:{}}).models,fetcher:fixture([])});await restarted.start();
+ assert.equal(restarted.active,'nvidia');assert(restarted.ready());assert.equal(restarted.snapshot().apiKey,'private-key');
+ m.persist=()=>{throw Error('secret path');};await assert.rejects(m.configure({active:'gateway'}),e=>e.status===500&&!e.message.includes('secret path'));assert.equal(m.active,'nvidia');
+});

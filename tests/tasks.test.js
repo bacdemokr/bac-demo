@@ -29,3 +29,13 @@ test('Gateway failures stay errors and do not reveal upstream credentials or bod
 test('Telegram environment configuration also verifies its Chat ID before becoming connected',async()=>{
   const t=new TelegramBridge({token:'fixture',chatId:'12345',fetcher:async(url)=>answer({ok:true,result:url.endsWith('getMe')?{is_bot:true,username:'fixture_bot'}:{id:999}})});await t.start();assert.equal(t.public().connected,false);assert.match(t.public().error,/Chat ID/);t.stop();
 });
+
+test('Gateway distinguishes inference deadlines from connection failures without leaking details',async()=>{
+  for(const name of ['TimeoutError','AbortError','TypeError']){
+    await assert.rejects(callGateway({url:'http://localhost',token:'fixture-secret',messages:[],fetcher:async()=>{const error=new Error('fixture-secret');error.name=name;throw error;}}),error=>{
+      assert.equal(error.status,name==='TypeError'?502:504);
+      assert.match(error.message,name==='TypeError'?/연결할 수 없습니다/:/응답 시간이 초과/);
+      assert.ok(!error.message.includes('fixture-secret'));return true;
+    });
+  }
+});

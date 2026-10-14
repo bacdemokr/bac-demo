@@ -17,8 +17,8 @@ function parseReply(data){
   return {reply:text.replace(/^\s*SUMMARY:.*$/im,'').trim()||bubble,bubble};
 }
 class ModelConnections{
-  constructor({config={},fetcher=fetch,canConfigure=()=>true}={}){
-    this.fetcher=fetcher;this.canConfigure=canConfigure;this.active=config.active||'gateway';this.profiles={};this.revision=0;
+  constructor({config={},fetcher=fetch,canConfigure=()=>true,persist=()=>{}}={}){
+    this.fetcher=fetcher;this.canConfigure=canConfigure;this.persist=persist;this.active=config.active||'gateway';this.profiles={};this.revision=0;
     for(const provider of Object.keys(DEFAULTS)){const raw=config[provider];if(raw?.model)this.profiles[provider]={...validateProfile(provider,raw),source:raw.source||'config',verified:false,error:''};}
   }
   public(){return {active:this.active,profiles:Object.fromEntries(Object.entries(DEFAULTS).map(([provider,baseUrl])=>{const p=this.profiles[provider];return [provider,{configured:!!p,connected:!!p?.verified,baseUrl:p?.baseUrl||baseUrl,model:p?.model||'',hasKey:!!p?.apiKey,source:p?.source||'none',error:p?.error||''}];}))};}
@@ -33,15 +33,22 @@ class ModelConnections{
   }
   async models(provider,input){const p=this.candidate(provider,input),data=await this.request(p,'/models',{timeout:15000});if(!Array.isArray(data?.data))throw new Problem('모델 목록을 읽지 못했습니다.',502);return {models:data.data.filter(m=>typeof m?.id==='string'&&m.id.length<=256&&!/[\s\x00-\x1f\x7f]/.test(m.id)).slice(0,1000).map(m=>({id:m.id}))};}
   async verify(provider,p,inference=false){const {models}=await this.models(provider,p);if(!models.some(m=>m.id===p.model))throw new Problem('서버에 해당 모델이 없습니다. 모델 목록에서 선택해주세요.',409);if(inference)parseReply(await this.request(p,'/chat/completions',{messages:[{role:'user',content:'Reply with OK.'}],timeout:30000,maxTokens:128}));}
+  save(active,profiles=this.profiles){
+    const config={active};
+    for(const [provider,p] of Object.entries(profiles))config[provider]={baseUrl:p.baseUrl,model:p.model,apiKey:p.apiKey};
+    try{this.persist(config);}catch{throw new Problem('모델 설정을 저장하지 못했습니다. api.json 경로와 쓰기 권한을 확인해주세요.',500);}
+  }
   async configure(input){
     if(!this.canConfigure())throw new Problem('진행 중인 작업이 끝난 뒤 모델을 변경해주세요.',409);
     const rev=++this.revision;
-    if(input.active!==undefined){if(!['gateway','local','nvidia'].includes(input.active))throw new Problem('사용할 모델 연결을 확인해주세요.');if(input.active!=='gateway'&&!this.profiles[input.active]?.verified)throw new Problem('먼저 해당 모델을 연결해주세요.',409);this.active=input.active;return this.public();}
+    if(input.active!==undefined){if(!['gateway','local','nvidia'].includes(input.active))throw new Problem('사용할 모델 연결을 확인해주세요.');if(input.active!=='gateway'&&!this.profiles[input.active]?.verified)throw new Problem('먼저 해당 모델을 연결해주세요.',409);this.save(input.active);this.active=input.active;return this.public();}
     const provider=input.provider,p=this.candidate(provider,input);if(!p.model)throw new Problem('모델 ID를 선택해주세요.');
     await this.verify(provider,p,true);
     if(rev!==this.revision)throw new Problem('더 최근 모델 설정이 적용되었습니다.',409);
     if(!this.canConfigure())throw new Problem('진행 중인 작업이 끝난 뒤 모델을 변경해주세요.',409);
-    this.profiles[provider]={...p,source:'runtime',verified:true,error:''};this.active=provider;return this.public();
+    const profile={...p,source:'runtime',verified:true,error:''};
+    this.save(provider,{...this.profiles,[provider]:profile});
+    this.profiles[provider]=profile;this.active=provider;return this.public();
   }
   async start(){await Promise.all(Object.entries(this.profiles).map(async([provider,p])=>{if(provider==='nvidia'&&!p.apiKey){p.error='NVIDIA Inference API \ud0a4\uac00 \ud544\uc694\ud569\ub2c8\ub2e4.';return;}try{await this.verify(provider,p);if(this.profiles[provider]===p){p.verified=true;p.error='';}}catch(e){if(this.profiles[provider]===p)p.error=e instanceof Problem?e.message:'모델 연결 확인 실패';}}));}
   async complete(profile,messages,timeout){return parseReply(await this.request(profile,'/chat/completions',{messages,timeout}));}
