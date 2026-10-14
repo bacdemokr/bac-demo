@@ -72,7 +72,7 @@ NVIDIA API는 사용할 서비스와 API 키를 입력하고 모델을 선택합
 }
 ```
 
-전체 항목의 빈 예시는 [api.example.json](api.example.json), NVIDIA 모델을 포함한 설정 예시는 [README.md](README.md#모델-설정)에 있습니다. 파일 변경 후 앱을 재시작하세요. 화면에서 이미 연결됐다고 표시되는 서비스는 키를 다시 입력하지 않아도 됩니다. `api.json`은 Git과 배포 파일에서 제외됩니다. 기존 `.env`와 토큰 파일도 계속 읽습니다.
+전체 항목의 빈 예시는 [api.example.json](api.example.json), NVIDIA 모델을 포함한 설정 예시는 [README.md](README.md#모델-설정)에 있습니다. 파일 변경 후 앱을 재시작하세요. 화면에서 이미 연결됐다고 표시되는 서비스는 키를 다시 입력하지 않아도 됩니다. 공개 `api.json`에는 Terra 모델 주소·ID만 있으며 API 키는 비어 있습니다. 실제 키를 사용할 때는 Git에서 제외되는 `api.local.json`을 만들고 `./bac start --config api.local.json`으로 실행하세요. 기존 `.env`와 토큰 파일도 계속 읽습니다.
 
 ## 기능별 연결 참고
 

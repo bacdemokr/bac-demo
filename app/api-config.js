@@ -34,7 +34,7 @@ function loadAPIConfig({ root = path.resolve(__dirname, '..'), env = process.env
     if(provider==='models'){
       const {validateProfile}=require('./model-connections');const m={active:value.active||'gateway'};
       if(!['gateway','local','nvidia'].includes(m.active))throw new ConfigError('api.json의 models.active 값을 확인해주세요.');
-      for(const kind of ['local','nvidia'])if(value[kind]!==undefined){const profile=value[kind];if(!profile||typeof profile!=='object'||Array.isArray(profile)||Object.keys(profile).some(k=>!['baseUrl','apiKey','model'].includes(k)))throw new ConfigError('api.json의 모델 설정 항목을 확인해주세요.');try{m[kind]=validateProfile(kind,profile);}catch{throw new ConfigError('api.json의 모델 주소·키·ID를 확인해주세요.');}if(m[kind].model&&kind==='nvidia'&&!m[kind].apiKey)throw new ConfigError('api.json에 NVIDIA 모델 API 키가 필요합니다.');}
+      for(const kind of ['local','nvidia'])if(value[kind]!==undefined){const profile=value[kind];if(!profile||typeof profile!=='object'||Array.isArray(profile)||Object.keys(profile).some(k=>!['baseUrl','apiKey','model'].includes(k)))throw new ConfigError('api.json의 모델 설정 항목을 확인해주세요.');try{m[kind]=validateProfile(kind,profile);}catch{throw new ConfigError('api.json의 모델 주소·키·ID를 확인해주세요.');}if(m.active===kind&&m[kind].model&&kind==='nvidia'&&!m[kind].apiKey)throw new ConfigError('api.json에 NVIDIA 모델 API 키가 필요합니다.');}
       if(m.active!=='gateway'&&!m[m.active]?.model)throw new ConfigError('api.json에 선택한 모델의 ID가 필요합니다.');config.models=m;continue;
     }
     config[provider] = {};

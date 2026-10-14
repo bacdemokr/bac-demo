@@ -44,7 +44,7 @@ AI 응답에는 기존 OpenClaw·로컬 모델·NVIDIA API 중 하나만 연결�
 
 ## API 한 번에 설정하기
 
-파일 편집도 선택 사항입니다. **연결 설정**에서 사용할 서비스만 입력해 바로 사용할 수 있습니다. 재시작 후에도 유지하려면 첫 실행에 자동으로 준비되는 `api.json`에 저장하세요. 사용할 서비스의 항목만 채우고 `./bac start`를 실행하세요. 연결을 시작 시 검증하므로 화면에서 키를 다시 넣을 필요가 없습니다. 빈 키는 미설정으로 처리하며, 기존 환경변수·토큰 파일을 계속 사용하거나 화면에서 연결할 수 있습니다.
+파일 편집도 선택 사항입니다. **연결 설정**에서 사용할 서비스만 입력해 바로 사용할 수 있습니다. 공개 `api.json`에는 Terra 모델 주소와 ID를 미리 채웠으며 키는 비워두었습니다. 개인 키를 저장하려면 Git에서 제외되는 `api.local.json`을 만들고 `./bac start --config api.local.json`으로 실행하세요. 사용할 서비스의 항목만 채우고 `./bac start`를 실행하세요. 연결을 시작 시 검증하므로 화면에서 키를 다시 넣을 필요가 없습니다. 빈 키는 미설정으로 처리하며, 기존 환경변수·토큰 파일을 계속 사용하거나 화면에서 연결할 수 있습니다.
 
 ```json
 {
@@ -54,7 +54,7 @@ AI 응답에는 기존 OpenClaw·로컬 모델·NVIDIA API 중 하나만 연결�
 }
 ```
 
-화면 입력이 현재 연결을 바꾸며, 재시작하면 `api.json` 설정을 다시 적용합니다. `api.json`의 값이 기존 환경변수·토큰 파일보다 우선합니다. 파일을 수정한 뒤에는 앱을 재시작하세요. 실제 키가 든 `api.json`은 Git에서 제외하고, 배포에는 빈 `api.example.json`만 포함합니다. 연결 확인은 메시지 발송이나 GitHub 변경을 실행하지 않습니다. OpenClaw는 로컬 설정을 자동으로 찾습니다. OpenClaw에 별도 등록한 `scripts/github-mcp.sh`도 시작할 때 같은 파일의 GitHub 토큰을 읽습니다. 화면 입력으로 이미 실행 중인 MCP 인증을 바꾸지는 않습니다.
+화면 입력이 현재 연결을 바꾸며, 재시작하면 설정 파일을 다시 적용합니다. 지정한 설정 파일의 값이 기존 환경변수·토큰 파일보다 우선합니다. 파일을 수정한 뒤에는 앱을 재시작하세요. 공개 `api.json`과 `api.example.json`에는 비밀 키를 넣지 마세요. 실제 키는 `api.local.json` 또는 화면에서 입력하세요. 연결 확인은 메시지 발송이나 GitHub 변경을 실행하지 않습니다. OpenClaw는 로컬 설정을 자동으로 찾습니다. OpenClaw에 별도 등록한 `scripts/github-mcp.sh`는 지정 설정 파일이나 기존 환경의 GitHub 토큰을 읽습니다. 화면 입력으로 이미 실행 중인 MCP 인증을 바꾸지는 않습니다.
 
 ## 모델 설정
 
@@ -62,13 +62,12 @@ AI 응답에는 기존 OpenClaw·로컬 모델·NVIDIA API 중 하나만 연결�
 
 ```json
 "models": {
-  "active": "local",
-  "local": {"baseUrl": "http://127.0.0.1:8001/v1", "model": "YOUR_LOCAL_MODEL", "apiKey": ""},
-  "nvidia": {"baseUrl": "https://inference-api.nvidia.com/v1", "model": "YOUR_NVIDIA_MODEL", "apiKey": "YOUR_API_KEY"}
+  "active": "nvidia",
+  "nvidia": {"baseUrl": "https://inference-api.nvidia.com/v1", "model": "azure/openai/gpt-5.6-terra", "apiKey": "YOUR_API_KEY"}
 }
 ```
 
-`active`는 `local`, `nvidia`, `gateway` 중 하나입니다. 기존 설정 파일에는 models를 추가하지 않아도 기존 OpenClaw 연결을 사용합니다. 파일로 설정하면 시작 시 모델 목록을 확인하며, 검증 실패 시 다른 모델로 자동 전환하지 않습니다. 런타임 변경은 파일을 수정하지 않습니다. 사내 Inference Hub는 `https://inference-api.nvidia.com/v1`, 공개 NVIDIA API Catalog는 `https://integrate.api.nvidia.com/v1`을 사용합니다. 해당 서비스의 API 키를 입력하세요. 주소를 변경하면 기존 키를 다른 서버로 전달하지 않습니다.
+`active`는 `local`, `nvidia`, `gateway` 중 하나입니다. 공개 `api.json`에는 Terra 모델 주소와 ID가 들어 있고 키는 비워져 있습니다. API 키가 없을 때는 활성 연결을 기존 OpenClaw(`gateway`)로 유지하므로 앱이 정상 시작합니다. 실제 사용을 위해서는 개인 설정 파일에서 `active`를 `nvidia`로 바꾸고 발급받은 키를 입력하세요. 기존 설정 파일에는 models를 추가하지 않아도 기존 OpenClaw 연결을 사용합니다. 파일로 설정하면 시작 시 모델 목록을 확인하며, 검증 실패 시 다른 모델로 자동 전환하지 않습니다. 런타임 변경은 파일을 수정하지 않습니다. 사내 Inference Hub는 `https://inference-api.nvidia.com/v1`, 공개 NVIDIA API Catalog는 `https://integrate.api.nvidia.com/v1`을 사용합니다. 해당 서비스의 API 키를 입력하세요. 주소를 변경하면 기존 키를 다른 서버로 전달하지 않습니다.
 
 ## 권장 시연 흐름
 

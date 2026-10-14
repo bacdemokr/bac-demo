@@ -43,7 +43,7 @@ class ModelConnections{
     if(!this.canConfigure())throw new Problem('진행 중인 작업이 끝난 뒤 모델을 변경해주세요.',409);
     this.profiles[provider]={...p,source:'runtime',verified:true,error:''};this.active=provider;return this.public();
   }
-  async start(){await Promise.all(Object.entries(this.profiles).map(async([provider,p])=>{try{await this.verify(provider,p);if(this.profiles[provider]===p){p.verified=true;p.error='';}}catch(e){if(this.profiles[provider]===p)p.error=e instanceof Problem?e.message:'모델 연결 확인 실패';}}));}
+  async start(){await Promise.all(Object.entries(this.profiles).map(async([provider,p])=>{if(provider==='nvidia'&&!p.apiKey){p.error='NVIDIA Inference API \ud0a4\uac00 \ud544\uc694\ud569\ub2c8\ub2e4.';return;}try{await this.verify(provider,p);if(this.profiles[provider]===p){p.verified=true;p.error='';}}catch(e){if(this.profiles[provider]===p)p.error=e instanceof Problem?e.message:'모델 연결 확인 실패';}}));}
   async complete(profile,messages,timeout){return parseReply(await this.request(profile,'/chat/completions',{messages,timeout}));}
 }
 module.exports={ModelConnections,validateProfile,DEFAULTS};

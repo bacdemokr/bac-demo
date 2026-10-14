@@ -3,7 +3,7 @@ node_modules/
 
 # secrets — NEVER commit
 .env
-api.json
+api.local.json
 .bac/
 app/.gw_token
 app/.gh_token
