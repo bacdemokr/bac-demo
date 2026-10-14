@@ -111,3 +111,9 @@ TEST_CHROMIUM_EXECUTABLE=/path/to/chromium npm run test:browser
 - [bac-demo-kr](https://github.com/yechank-nvidia/bac-demo-kr/tree/a205ea8b228a6e77f88199649f3f9b6dc55f8655): 탐색 팝업·진행 표시 흐름 참고. 여기서는 결과 재생 대신 실제 CDP 화면을 캡처합니다.
 - [AgentMail 공식 SDK](https://github.com/agentmail-to/agentmail-node/tree/e344c53d0e8777ee353759c141f85e23d6e71a99): Inbox 조회, 메시지 목록, 발송 API 경로 확인.
 - [AgentMail MCP 안내](https://www.agentmail.to/docs/integrations/mcp): gateway의 에이전트가 직접 이메일 도구를 호출하게 확장할 때 참고. 현재 메시지 화면은 REST API 연동입니다.
+
+### OpenClaw Telegram 봇과 함께 사용하기
+
+웹 데모의 NVIDIA API 모델 설정은 OpenClaw의 Telegram 에이전트 모델을 변경하지 않습니다. Telegram AI 답변에는 OpenClaw에도 NVIDIA API 공급자와 해당 에이전트 모델을 설정해야 합니다. `./bac start`는 웹 데모와 브라우저를 실행하며 OpenClaw Gateway를 설치하거나 시작하지 않습니다.
+
+같은 Telegram 봇을 OpenClaw가 수신한다면 `.env`에 `BAC_TELEGRAM_RECEIVE=false`를 설정하세요. 데모는 봇 인증과 명시적인 발송을 유지하지만 `getUpdates`를 호출하지 않아 수신 충돌을 방지합니다. 데모 화면에서도 메시지를 수신하려면 별도 봇 토큰을 사용하세요.

@@ -38,15 +38,15 @@ async function providerRequest(fetcher, url, options, provider) {
 }
 
 class TelegramBridge {
-  constructor({ token = "", chatId = "", source = 'environment', fetcher = fetch } = {}) {
-    this.fetcher = fetcher;
+  constructor({ token = "", chatId = "", source = 'environment', receiveEnabled = true, fetcher = fetch } = {}) {
+    this.fetcher = fetcher; this.receiveEnabled = receiveEnabled;
     this.connection = token ? { token, chatId: String(chatId), source, bot: "", verified: false } : null;
     this.revision = 0; this.attempt = 0; this.inbox = []; this.seq = 0; this.offset = 0;
     this.controller = null; this.timer = null; this.error = "";
   }
   public() {
     const c = this.connection;
-    return { configured: !!c, connected: !!c?.verified, source:c?.source||'none', bot: c?.bot || "", chatId: c?.chatId || "", error: this.error };
+    return { receiveEnabled:this.receiveEnabled, configured: !!c, connected: !!c?.verified, source:c?.source||'none', bot: c?.bot || "", chatId: c?.chatId || "", error: this.error };
   }
   async request(c, method, payload = {}, signal) {
     const data = await providerRequest(this.fetcher, `https://api.telegram.org/bot${c.token}/${method}`, {
@@ -88,7 +88,7 @@ class TelegramBridge {
   stop() { clearTimeout(this.timer); this.controller?.abort(); this.controller = null; }
   async poll(initial = false) {
     const c = this.connection, revision = this.revision;
-    if (!c?.verified) return;
+    if (!c?.verified || !this.receiveEnabled) return;
     const controller = new AbortController(); this.controller = controller;
     let delay = 300;
     try {

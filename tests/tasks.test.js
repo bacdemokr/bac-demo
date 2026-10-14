@@ -39,3 +39,8 @@ test('Gateway distinguishes inference deadlines from connection failures without
     });
   }
 });
+
+test('Telegram send-only mode verifies the bot without competing for OpenClaw updates',async()=>{
+ const methods=[];const t=new TelegramBridge({token:'fixture',chatId:'12345',receiveEnabled:false,fetcher:async url=>{const method=url.split('/').at(-1);methods.push(method);return answer({ok:true,result:method==='getMe'?{is_bot:true,username:'fixture_bot'}:{id:12345}});}});
+ await t.start();await t.poll();assert.equal(t.public().connected,true);assert.equal(t.public().receiveEnabled,false);assert.deepEqual(methods,['getMe','getChat']);assert.equal(t.timer,null);t.stop();
+});

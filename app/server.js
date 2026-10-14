@@ -523,7 +523,7 @@ function ghReq(method,p,body,connection){return github.request(connection||githu
 // Model settings persist to the private local config; other runtime integration settings stay in memory.
 const { createShowcase } = require("./showcase-api");
 const models=new ModelConnections({config:connections.models,persist:saveModels,canConfigure:()=>![...chatJobs.jobs.values()].some(j=>j.status==='pending')&&![...MA_JOBS.values()].some(j=>!j.done)&&!showcase.browser.busy});
-const showcase = createShowcase({ github, models, telegramConfig:connections.telegram, mailConfig:connections.agentmail, gateway: ()=>GATEWAY, gatewayToken: ()=>TOKEN,
+const showcase = createShowcase({ github, models, telegramConfig:{...connections.telegram,receiveEnabled:process.env.BAC_TELEGRAM_RECEIVE!=='false'}, mailConfig:connections.agentmail, gateway: ()=>GATEWAY, gatewayToken: ()=>TOKEN,
   browserAsk:()=>{
     if(!aiReady())return null;
     const runtime=aiSnapshot();
