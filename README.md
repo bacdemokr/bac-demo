@@ -117,3 +117,5 @@ TEST_CHROMIUM_EXECUTABLE=/path/to/chromium npm run test:browser
 웹 데모의 NVIDIA API 모델 설정은 OpenClaw의 Telegram 에이전트 모델을 변경하지 않습니다. Telegram AI 답변에는 OpenClaw에도 NVIDIA API 공급자와 해당 에이전트 모델을 설정해야 합니다. `./bac start`는 웹 데모와 브라우저를 실행하며 OpenClaw Gateway를 설치하거나 시작하지 않습니다.
 
 같은 Telegram 봇을 OpenClaw가 수신한다면 `.env`에 `BAC_TELEGRAM_RECEIVE=false`를 설정하세요. 데모는 봇 인증과 명시적인 발송을 유지하지만 `getUpdates`를 호출하지 않아 수신 충돌을 방지합니다. 데모 화면에서도 메시지를 수신하려면 별도 봇 토큰을 사용하세요.
+
+복사 가능한 NVIDIA 전용 [openclaw.json](openclaw.json)과 [OpenClaw 설정 안내](OPENCLAW-SETUP.md)를 제공합니다. 실제 키는 `~/.openclaw/.env`에만 입력하세요.

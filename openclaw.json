@@ -1,0 +1,278 @@
+{
+  "agents": {
+    "defaults": {
+      "workspace": "${HOME}/.openclaw/workspace",
+      "timeoutSeconds": 300,
+      "model": {
+        "primary": "bac-nvapi/azure/openai/gpt-5.6-terra"
+      },
+      "models": {
+        "bac-nvapi/azure/openai/gpt-5.6-terra": {
+          "alias": "bac-nvapi"
+        }
+      },
+      "heartbeat": {
+        "agentId": "main"
+      },
+      "systemAgent": {
+        "agentId": "main"
+      }
+    },
+    "ownership": "explicit",
+    "entries": {
+      "main": {
+        "name": "main",
+        "workspace": "${HOME}/.openclaw/workspace",
+        "agentDir": "${HOME}/.openclaw/agents/main/agent",
+        "model": "bac-nvapi/azure/openai/gpt-5.6-terra"
+      },
+      "telegram": {
+        "name": "Telegram Agent",
+        "workspace": "${HOME}/.openclaw/workspace-telegram",
+        "agentDir": "${HOME}/.openclaw/agents/telegram/agent",
+        "model": "bac-nvapi/azure/openai/gpt-5.6-terra"
+      },
+      "snu": {
+        "workspace": "${HOME}/.openclaw/workspace-snu",
+        "model": "bac-nvapi/azure/openai/gpt-5.6-terra",
+        "tools": {
+          "deny": [
+            "*"
+          ]
+        }
+      },
+      "git": {
+        "workspace": "${HOME}/.openclaw/workspace-git",
+        "model": "bac-nvapi/azure/openai/gpt-5.6-terra",
+        "tools": {
+          "profile": "coding"
+        }
+      },
+      "pm": {
+        "workspace": "${HOME}/.openclaw/workspace-pm",
+        "model": "bac-nvapi/azure/openai/gpt-5.6-terra",
+        "tools": {
+          "deny": [
+            "*"
+          ]
+        }
+      },
+      "dev": {
+        "workspace": "${HOME}/.openclaw/workspace-dev",
+        "model": "bac-nvapi/azure/openai/gpt-5.6-terra",
+        "tools": {
+          "deny": [
+            "*"
+          ]
+        }
+      },
+      "bac": {
+        "workspace": "${HOME}/.openclaw/workspace-bac",
+        "model": "bac-nvapi/azure/openai/gpt-5.6-terra",
+        "tools": {
+          "deny": [
+            "*"
+          ]
+        }
+      }
+    }
+  },
+  "bindings": [
+    {
+      "agentId": "telegram",
+      "match": {
+        "channel": "telegram"
+      }
+    },
+    {
+      "agentId": "main",
+      "match": {
+        "channel": "telegram",
+        "accountId": "*"
+      }
+    }
+  ],
+  "plugins": {
+    "entries": {
+      "anthropic": {
+        "config": {
+          "sessionCatalog": {
+            "enabled": false
+          }
+        }
+      },
+      "codex": {
+        "config": {
+          "sessionCatalog": {
+            "enabled": false
+          }
+        }
+      },
+      "telegram": {
+        "enabled": true
+      }
+    }
+  },
+  "gateway": {
+    "mode": "local",
+    "auth": {
+      "mode": "token",
+      "token": "${OPENCLAW_GATEWAY_TOKEN}"
+    },
+    "port": 18789,
+    "bind": "loopback",
+    "tailscale": {
+      "mode": "off"
+    },
+    "http": {
+      "endpoints": {
+        "chatCompletions": {
+          "enabled": true
+        }
+      }
+    }
+  },
+  "tools": {
+    "profile": "coding"
+  },
+  "hooks": {
+    "internal": {
+      "entries": {
+        "session-memory": {
+          "enabled": true
+        }
+      }
+    }
+  },
+  "models": {
+    "providers": {
+      "bac-nvapi": {
+        "baseUrl": "https://inference-api.nvidia.com/v1",
+        "apiKey": "${NVIDIA_API_KEY}",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "azure/openai/gpt-5.6-terra",
+            "name": "azure/openai/gpt-5.6-terra",
+            "reasoning": false,
+            "input": [
+              "text"
+            ],
+            "contextWindow": 128000,
+            "maxTokens": 8192
+          }
+        ]
+      }
+    }
+  },
+  "skills": {
+    "entries": {
+      "1password": {
+        "enabled": false
+      },
+      "blogwatcher": {
+        "enabled": false
+      },
+      "blucli": {
+        "enabled": false
+      },
+      "camsnap": {
+        "enabled": false
+      },
+      "coding-agent": {
+        "enabled": false
+      },
+      "eightctl": {
+        "enabled": false
+      },
+      "gemini": {
+        "enabled": false
+      },
+      "gifgrep": {
+        "enabled": false
+      },
+      "gog": {
+        "enabled": false
+      },
+      "goplaces": {
+        "enabled": false
+      },
+      "himalaya": {
+        "enabled": false
+      },
+      "mcporter": {
+        "enabled": false
+      },
+      "model-usage": {
+        "enabled": false
+      },
+      "nano-pdf": {
+        "enabled": false
+      },
+      "obsidian": {
+        "enabled": false
+      },
+      "openai-whisper": {
+        "enabled": false
+      },
+      "openai-whisper-api": {
+        "enabled": false
+      },
+      "openhue": {
+        "enabled": false
+      },
+      "oracle": {
+        "enabled": false
+      },
+      "ordercli": {
+        "enabled": false
+      },
+      "sag": {
+        "enabled": false
+      },
+      "sherpa-onnx-tts": {
+        "enabled": false
+      },
+      "songsee": {
+        "enabled": false
+      },
+      "sonoscli": {
+        "enabled": false
+      },
+      "spotify-player": {
+        "enabled": false
+      },
+      "summarize": {
+        "enabled": false
+      },
+      "trello": {
+        "enabled": false
+      },
+      "xurl": {
+        "enabled": false
+      }
+    }
+  },
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "groups": {
+        "*": {
+          "requireMention": false
+        }
+      },
+      "botToken": "${TELEGRAM_BOT_TOKEN}",
+      "groupAllowFrom": [
+        "${TELEGRAM_ALLOWED_USER_ID}"
+      ]
+    }
+  },
+  "commands": {
+    "ownerAllowFrom": [
+      "telegram:8693551941"
+    ]
+  },
+  "talk": {
+    "agentId": "main"
+  }
+}
