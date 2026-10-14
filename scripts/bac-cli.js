@@ -15,7 +15,9 @@ start   앱 실행, 필요한 패키지 설치 및 로컬 브라우저 준비
 status  앱 실행 상태 확인
 종료    실행 중인 터미널에서 Ctrl+C
 
-api.json과 .env는 자동으로 읽습니다. 설정 파일 없이도 실행할 수 있습니다.`;
+설정 파일 없이 실행할 수 있습니다. 기존 api.json과 .env는 자동으로 읽습니다.
+AI는 화면에서 로컬 모델 또는 NVIDIA API 하나만 연결하면 됩니다.
+실행 중인 로컬 OpenClaw는 자동 확인하며, GitHub·Telegram·AgentMail은 선택 사항입니다.`;
 async function json(url) {
   try { const res = await fetch(url, { signal: AbortSignal.timeout(800), redirect: 'error' }); return res.ok ? await res.json() : null; }
   catch { return null; }

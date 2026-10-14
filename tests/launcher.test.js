@@ -67,9 +67,16 @@ test('launcher loads .env and all JSON providers, installs missing dependencies,
     assert.equal((await fetch('http://127.0.0.1:' + provider.address().port + '/user')).status, 200);
     // A new checkout starts with no credential file; it should create a private blank template.
     await fs.unlink(file);
-    running = launch(temporary, ['start', '--port', String(port), '--no-browser'], env);
+    await fs.unlink(path.join(temporary, '.env'));
+    const bareEnv={...env,GATEWAY_URL:'http://127.0.0.1:1',OPENCLAW_CONFIG_PATH:path.join(temporary,'no-openclaw.json'),OPENCLAW_STATE_DIR:'',GITHUB_TOKEN:'',TG_BOT_TOKEN:'',TG_CHAT_ID:'',AGENTMAIL_API_KEY:'',AGENTMAIL_INBOX_ID:''};
+    running = launch(temporary, ['start', '--port', String(port), '--no-browser'], bareEnv);
     for(let i=0;i<100;i++){try{if((await fetch(base+'/api/health')).ok)break;}catch{}await wait(50);}
     const blank=JSON.parse(await fs.readFile(file,'utf8'));assert.equal(blank.github.token,'');assert.equal(blank.telegram.botToken,'');assert.equal(blank.agentmail.apiKey,'');assert.equal((await fs.stat(file)).mode&0o777,0o600);
+    const bareStatus=await(await fetch(base+'/api/showcase/status')).json();
+    assert.equal(bareStatus.ai.configured,false);assert.equal(bareStatus.github.connected,false);assert.equal(bareStatus.telegram.connected,false);assert.equal(bareStatus.agentmail.connected,false);
+    assert.equal((await fetch(base+'/')).status,200);assert.equal((await fetch(base+'/api/sysinfo')).status,200);
+    const chat=await fetch(base+'/api/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agent:'sysmon',messages:[{role:'user',content:'상태 요약해줘'}]})});assert.equal(chat.status,409);
+    assert(!running.logs().includes('MISSING'));assert(running.logs().includes('연결 하나'));
     running.child.kill('SIGTERM');assert.equal((await running.done).code,0);
   } finally {
     if (running && running.child.exitCode === null) { running.child.kill('SIGTERM'); await running.done; }

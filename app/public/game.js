@@ -397,7 +397,7 @@
   document.addEventListener('click',e=>{if(!activeChar||document.querySelector('dialog[open]')||e.target.closest('#chat,dialog,#game,[data-agent],[data-mission="team"],[data-mission="research"],#motion-toggle,#studio-resources'))return;closeChat({restoreFocus:false});});
   inputEl.addEventListener('input',()=>{if(activeChar)session(activeChar).draft=inputEl.value;});
   async function runTurn(c,text){
-    if(c.busy)return;if(!(window.BacShowcase?.canRun(c.id)??true)){window.BacShowcase?.settings('tools');return;}
+    if(c.busy)return;if(!(window.BacShowcase?.canRun(c.id)??true)){window.BacShowcase?.settingsForAgent(c.id);return;}
     session(c);c.busy=true;sync();
     history[c.id].push({role:'user',content:text});
     const loading=append(c,'bot typing','응답 중...');emit('activity',{agent:c.name,text:'요청 시작'});
@@ -431,7 +431,7 @@
     catch(error){update(node,error.message,true);}finally{c.paperLoading=false;sync();}
   }
   const MA_SUGGESTIONS=[{label:'시스템 지표 요약',request:'Build a dependency-free CommonJS function summarizing GPU temperature and disk usage.'},{label:'논문 목록 포맷',request:'Build a dependency-free CommonJS function formatting paper titles and links into Markdown.'},{label:'작업 타이머',request:'Build a dependency-free CommonJS timer module for tracking named tasks.'}];
-  function suggestions(c){const block=document.createElement('div');block.className='ma-chips';for(const s of MA_SUGGESTIONS){const b=document.createElement('button');b.className='ma-chip';b.textContent=s.label;b.onclick=()=>{if(c.busy)return;if(!(window.BacShowcase?.canRun(c.id)??false)){window.BacShowcase?.settings('tools');return;}append(c,'me',s.request);runMultiagent(c,s.request);};block.append(b);}session(c).nodes.push(block);if(activeChar===c)msgsEl.append(block);}
+  function suggestions(c){const block=document.createElement('div');block.className='ma-chips';for(const s of MA_SUGGESTIONS){const b=document.createElement('button');b.className='ma-chip';b.textContent=s.label;b.onclick=()=>{if(c.busy)return;if(!(window.BacShowcase?.canRun(c.id)??false)){window.BacShowcase?.settingsForAgent(c.id);return;}append(c,'me',s.request);runMultiagent(c,s.request);};block.append(b);}session(c).nodes.push(block);if(activeChar===c)msgsEl.append(block);}
   function maCleanup(){maKids=[];maBox=null;maParent=null;}
   async function runMultiagent(c,request,existingJob){
     if(c.busy)return;c.busy=true;sync();maCleanup();maParent=c;

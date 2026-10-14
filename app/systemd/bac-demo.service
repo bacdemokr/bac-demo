@@ -1,12 +1,12 @@
 [Unit]
-Description=BaC multi-agent demo
+Description=Agentic AI Demo
 After=openclaw-gateway.service bac-chromium.service
 Wants=bac-chromium.service
 
 [Service]
 Type=simple
 WorkingDirectory=/home/nvidia/bac-demo
-EnvironmentFile=/home/nvidia/bac-demo/.env
+EnvironmentFile=-/home/nvidia/bac-demo/.env
 Environment=PATH=/home/nvidia/.local/bin:/usr/local/bin:/usr/bin:/bin:/snap/bin
 ExecStart=/home/nvidia/.local/bin/node app/server.js
 Restart=on-failure

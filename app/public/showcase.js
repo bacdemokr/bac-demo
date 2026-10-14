@@ -29,7 +29,7 @@
     const a=demo()?.getActive();
     document.querySelectorAll('[data-agent]').forEach(b=>{const c=demo().getAgents().find(c=>c.id===b.dataset.agent);b.classList.toggle('active',c===a);b.classList.toggle('working',!!c?.busy);b.setAttribute('aria-pressed',String(c===a));});
     const banner=$('chat-connection');banner.replaceChildren();banner.hidden=!a||canRun(a.id);
-    if(a&&!canRun(a.id)){const text=document.createElement('span');text.textContent=a.id==='multiagent'&&modelReady()?'협업에 필요한 GitHub 연결을 확인해주세요.':a.id==='github'&&(!status.github?.connected&&(directModel()||status.gateway?.agents?.git===false))?'GitHub 계정을 연결해주세요.':'연결 설정에서 사용할 AI 모델을 확인해주세요.';banner.append(text);}
+    if(a&&!canRun(a.id)){const text=document.createElement('span');text.textContent=a.id==='multiagent'&&modelReady()?'협업에 필요한 GitHub 연결을 확인해주세요.':a.id==='github'&&(!status.github?.connected&&(directModel()||status.gateway?.agents?.git===false))?'GitHub 계정을 연결해주세요.':'연결 설정에서 사용할 AI 모델을 확인해주세요.';const connect=document.createElement('button');connect.type='button';connect.className='quiet-button';connect.textContent=modelReady()?'GitHub 연결':'모델 연결';connect.onclick=()=>settingsForAgent(a.id);banner.append(text,connect);}
     const hasResult=!!results.get(a?.name);$('share-telegram').disabled=!hasResult;$('share-mail').disabled=!hasResult;
     $('input').disabled=!!a?.busy||!a||!canRun(a.id);$('input').placeholder=a?.busy?'작업 진행 중...':'메시지 입력';
     document.querySelectorAll('#agent-actions button').forEach(b=>b.disabled=!!a?.busy||!!a?.paperLoading||!a||(b.hasAttribute('data-ai')&&!canRun(a.id)));
@@ -67,7 +67,8 @@
     tabs.forEach((b,i)=>{b.onclick=()=>select(b.getAttribute(attribute));b.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const next=e.key==='Home'?0:e.key==='End'?tabs.length-1:(i+(e.key==='ArrowLeft'?-1:1)+tabs.length)%tabs.length;select(tabs[next].getAttribute(attribute));tabs[next].focus();};});
   }
   function selectTab(tab){document.querySelectorAll('[data-tab]').forEach(b=>{const active=b.dataset.tab===tab;b.setAttribute('aria-selected',String(active));b.tabIndex=active?0:-1;$('panel-'+b.dataset.tab).hidden=!active;});}
-  function openSettings(tab='telegram'){if(tab==='gateway')tab='tools';selectTab(tab);if(!$('settings-dialog').open)$('settings-dialog').showModal();refreshStatus();}
+  function openSettings(tab=modelReady()?'telegram':'models'){if(tab==='gateway')tab='tools';selectTab(tab);if(!$('settings-dialog').open)$('settings-dialog').showModal();refreshStatus();}
+  function settingsForAgent(id){openSettings(modelReady()&&(id==='github'||id==='multiagent')?'github':'models');}
   $('settings-open').onclick=()=>{demo().closeChat({restoreFocus:false});openSettings();};bindTabs('data-tab',selectTab);
   let modelBusy=false;
   const modelNames={local:'로컬 모델',nvidia:'NVIDIA Inference API'};
@@ -75,7 +76,7 @@
     const inventory=status.models;if(!inventory)return;
     $('model-active').value=inventory.active;$('model-active').disabled=modelBusy;
     for(const opt of $('model-active').options)opt.disabled=opt.value!=='gateway'&&!inventory.profiles[opt.value]?.connected;
-    const selected=inventory.profiles[inventory.active];showStatus('model-active-status',inventory.active==='gateway'?`현재 사용 · ${status.ai?.model||'기존 OpenClaw 설정'}`:`현재 사용 · ${modelNames[inventory.active]} · ${selected?.model||''}`,!!selected?.error);
+    const selected=inventory.profiles[inventory.active];showStatus('model-active-status',inventory.active==='gateway'?(modelReady()?`현재 사용 · ${status.ai?.model||'기존 OpenClaw 설정'}`:'AI 연결 전 · 로컬 모델 또는 NVIDIA API 중 하나를 연결하세요.'):`현재 사용 · ${modelNames[inventory.active]} · ${selected?.model||''}`,!!selected?.error);
     $('model-profiles').replaceChildren();
     for(const provider of ['local','nvidia']){const c=inventory.profiles[provider],card=document.createElement('article'),heading=document.createElement('strong'),state=document.createElement('p'),detail=document.createElement('small'),edit=document.createElement('button');card.className='connection-card model-card';card.dataset.state=c.connected?'connected':c.configured?'warning':'pending';heading.textContent=modelNames[provider];state.textContent=c.connected?'✓ 연결됨 · '+c.model:c.error||'연결 전';detail.textContent=c.configured?`${c.baseUrl} · ${c.source==='config'?'api.json':'런타임 설정'}`:'';edit.className='quiet-button';edit.type='button';edit.textContent=c.configured?'연결 정보 변경':'연결 설정';edit.disabled=modelBusy;edit.onclick=()=>editModel(provider);card.append(heading,state,detail,edit);$('model-profiles').append(card);}
   }
@@ -338,6 +339,6 @@
     catch(e){showStatus('share-status',e.message,true);if(!$('share-dialog').open)toast(e.message);}
     finally{shareSending=false;controls.forEach(b=>b.disabled=false);}
   };
-  window.BacShowcase={browse,inbox:openInbox,settings:openSettings,canRun};refreshStatus();
+  window.BacShowcase={browse,inbox:openInbox,settings:openSettings,settingsForAgent,canRun};refreshStatus();
   setInterval(()=>{if(!document.hidden)refreshStatus();},15000);
 })();
