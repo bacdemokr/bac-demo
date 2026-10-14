@@ -4,10 +4,10 @@
 
 ## 처음 실행
 
-현재 개선 버전은 `improve-mcp-showcase` 브랜치에 있습니다. GitHub 기본 `main`에는 이전 버전의 설치 안내가 남아 있으므로, 개선 버전은 아래처럼 받으세요.
+GitHub에서 프로젝트를 받은 뒤 바로 실행하세요.
 
 ```bash
-git clone --branch improve-mcp-showcase https://github.com/bacdemokr/bac-demo.git
+git clone https://github.com/bacdemokr/bac-demo.git
 cd bac-demo
 ./bac start
 ```
